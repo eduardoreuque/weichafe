@@ -1,3 +1,86 @@
+# Weichafe - Gestion de Academia (PC y Celular)
+
+Aplicacion web responsiva para administrar alumnos, mensualidades, clases diarias y comprobantes de pago.
+
+## Funcionalidades incluidas
+
+- Perfil de alumno con:
+	- Nombre completo
+	- Fecha de nacimiento y edad calculada
+	- Correo
+	- WhatsApp
+	- Direccion y comuna
+	- Telefono de emergencia
+- Registro de mensualidades:
+	- Fecha de pago
+	- Mes que cubre la mensualidad
+	- Disciplina (MMA, Kick, Boxeo, Jiu Jitsu, etc.)
+	- Estado: pagado, pendiente o saltado
+	- Historial por alumno
+- Deteccion visual de meses saltados por disciplina.
+- Venta por clase diaria (clase suelta).
+- Emision de comprobantes con metodo de pago:
+	- Efectivo
+	- Transferencia
+	- Tarjeta debito
+	- Tarjeta credito
+- Vista imprimible de comprobante.
+
+## Stack
+
+- Next.js 16 + TypeScript + App Router
+- Prisma ORM
+- SQLite (archivo local)
+- Tailwind CSS
+
+## Ejecutar en local
+
+1. Instalar dependencias
+
+```bash
+npm install
+```
+
+2. Configurar variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+3. Crear base de datos y tablas
+
+```bash
+npm run prisma:migrate -- --name init
+```
+
+4. Cargar datos de ejemplo
+
+```bash
+npm run db:seed
+```
+
+5. Levantar en desarrollo
+
+```bash
+npm run dev
+```
+
+App disponible en http://localhost:3000.
+
+## Build de produccion
+
+```bash
+npm run build
+npm run start
+```
+
+## Estructura principal
+
+- prisma/schema.prisma: modelos de datos
+- prisma/seed.ts: datos iniciales
+- src/app/page.tsx: dashboard principal y formularios
+- src/app/actions.ts: acciones del servidor
+- src/app/comprobantes/[id]/page.tsx: comprobante imprimible
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
