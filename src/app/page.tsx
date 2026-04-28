@@ -64,6 +64,16 @@ const schedules = [
   },
 ];
 
+const contactInfo = {
+  address: "Avenida Vicuna Mackenna 10688, La Florida, Region Metropolitana de Santiago, Chile",
+  phoneLabel: "+56 9 4538 8812",
+  phoneHref: "tel:+56945388812",
+  mapsHref:
+    "https://www.google.com/maps/search/?api=1&query=Avenida+Vicuna+Mackenna+10688,+La+Florida,+Region+Metropolitana+de+Santiago,+Chile",
+  facebookHref: "https://www.facebook.com/eweichafe/",
+  instagramHref: "https://www.instagram.com/equipoweichafe/",
+};
+
 function statusClass(status: MonthlyStatus): string {
   switch (status) {
     case "PAGADO":
@@ -155,6 +165,48 @@ export default async function Home() {
             Registro con fecha de pago, disciplina pagada (MMA, Kick, Boxeo, Jiu Jitsu y más), alertas de meses saltados y ventas por clase diaria.
           </p>
         </header>
+
+        <section className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Contacto Weichafe</p>
+              <h2 className="mt-2 text-xl font-bold text-slate-900">Informacion de sede y redes</h2>
+              <p className="mt-3 text-sm text-slate-700">{contactInfo.address}</p>
+              <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                <a
+                  href={contactInfo.mapsHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-slate-300 px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  Ver ubicacion
+                </a>
+                <a
+                  href={contactInfo.phoneHref}
+                  className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  {contactInfo.phoneLabel}
+                </a>
+                <a
+                  href={contactInfo.facebookHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                >
+                  Facebook
+                </a>
+                <a
+                  href={contactInfo.instagramHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-pink-300 bg-pink-50 px-3 py-2 font-semibold text-pink-700 transition-colors hover:bg-pink-100"
+                >
+                  Instagram
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
           <article className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
