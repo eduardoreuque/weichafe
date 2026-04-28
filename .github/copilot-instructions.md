@@ -1,30 +1,42 @@
-- [x] Verify that the copilot-instructions.md file in the .github directory is created.
-  Summary: File created at .github/copilot-instructions.md.
+# Instrucciones Copilot — Proyecto Weichafe (AISLADO de FTC)
 
-- [x] Clarify Project Requirements
-  Summary: User requested app for PC/cellular with students, monthly fees, class sales, receipts and payment methods.
+## Identidad del proyecto
+- **Propietario:** Eduardo Reuque (cuenta personal GitHub: eduardoreuque)
+- **Repositorio:** https://github.com/eduardoreuque/weichafe
+- **Ubicación local:** ~/Projects/weichafe
+- **Este proyecto NO pertenece a ereuqueb_FTC ni a ningún workspace corporativo.**
 
-- [x] Scaffold the Project
-  Summary: Next.js TypeScript app scaffolded in current workspace root.
+## Stack técnico
+- Next.js 16.2.4 (App Router, Turbopack, standalone output)
+- TypeScript + Tailwind CSS
+- Prisma 6 + SQLite (dev.db, nunca versionar)
+- Autenticación: JWT (jose) + bcrypt (bcryptjs)
+- Roles: ADMIN y STAFF
+- Deploy: AWS EC2 (54.226.22.80), systemd service `weichafe.service`
+- CI/CD: GitHub Actions (.github/workflows/deploy.yml)
 
-- [x] Customize the Project
-  Summary: Added student profiles, monthly payments, class sales, receipt generation, responsive UI, and printable receipt page.
+## Reglas de desarrollo
+- Los formularios usan fetch a rutas API (/api/students, /api/monthly-payments, /api/daily-class-sales), NO server actions directamente.
+- El proxy de Next.js 16 está en src/proxy.ts (no middleware.ts). La función exportada se llama `proxy`.
+- La cookie de sesión NO usa `secure: true` en HTTP — se controla con la variable COOKIE_SECURE=true solo si hay HTTPS.
+- La base de datos dev.db está en .gitignore y NO se sube a GitHub.
+- El logo oficial es /public/logo-weichafe-2026.png.
 
-- [x] Install Required Extensions
-  Summary: No extensions required by setup info.
+## Deploy manual
+```bash
+npm run build
+node scripts/prepare-standalone.cjs
+COPYFILE_DISABLE=1 tar czf /tmp/weichafe-standalone.tar.gz -C .next/standalone .
+scp -i ~/.ssh/weichafe-ec2 /tmp/weichafe-standalone.tar.gz ec2-user@54.226.22.80:/home/ec2-user/weichafe-standalone.tar.gz
+ssh -i ~/.ssh/weichafe-ec2 ec2-user@54.226.22.80 'mkdir -p ~/weichafe-standalone && tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone && sudo systemctl restart weichafe.service'
+```
 
-- [x] Compile the Project
-  Summary: Prisma migrate + seed + Next build completed successfully.
+## Credenciales de producción (EC2)
+- admin@weichafe.cl / admin2024
+- funcionario@weichafe.cl / staff2024
+- Cambiar con el script en README-CAMBIO-CONTRASENAS.md
 
-- [x] Create and Run Task
-  Summary: Created and launched task "Run Weichafe Dev Server".
-
-- [x] Launch the Project
-  Summary: User confirmed debug launch and debugger start command executed.
-
-- [x] Ensure Documentation is Complete
-  Summary: README.md and .github/copilot-instructions.md updated and HTML comments removed.
-
-- Work through each checklist item systematically.
-- Keep communication concise and focused.
-- Follow development best practices.
+## Separación de proyectos FTC
+- Los proyectos FTC (ereuqueb_FTC) van en carpetas separadas y tienen su propio .github/copilot-instructions.md.
+- Nunca mezclar instrucciones, credenciales ni configuración de ambos entornos.
+- Git user local de este repo: Eduardo Reuque <eduardoreuque@gmail.com>
