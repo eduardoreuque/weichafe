@@ -151,3 +151,7 @@ Rutas tipicas:
 ## Logo
 
 - Logo unico web, recibos e instaladores: `public/weichafe.jpg`
+
+## Documentación técnica
+
+- [Arquitectura, diagramas de flujo y stack detallado](docs/ARCHITECTURE.md)
