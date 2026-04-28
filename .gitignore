@@ -39,3 +39,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# electron build outputs
+/dist-electron/
+
+# mobile (Capacitor)
+/android/
+/ios/
+/installers/
+
+# sqlite dev database (contiene datos reales - no versionar)
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
+
+# env (nunca versionar secrets)
+.env
+.env.local
+.env.production

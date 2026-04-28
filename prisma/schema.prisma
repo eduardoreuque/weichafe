@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -98,4 +99,19 @@ model Receipt {
   dailyClassSale DailyClassSale? @relation(fields: [dailyClassSaleId], references: [id], onDelete: SetNull)
 
   @@index([studentId, issuedAt])
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

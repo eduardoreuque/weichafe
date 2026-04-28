@@ -1,6 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Discipline, MonthlyStatus, PaymentMethod } from "@prisma/client";
-import { createDailyClassSale, createMonthlyPayment, createStudent } from "./actions";
+import { Discipline, MonthlyStatus } from "@prisma/client";
 import {
   calculateAge,
   detectSkippedMonthsByDiscipline,
@@ -11,25 +11,58 @@ import {
   toMonthLabel,
 } from "@/lib/helpers";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { logoutAction } from "@/app/login/actions";
+import { StudentForm } from "@/components/student-form";
+import { PaymentForm } from "@/components/payment-form";
+import { ClassForm } from "@/components/class-form";
 
-const disciplines: Discipline[] = [
-  "MMA",
-  "KICK",
-  "BOXEO",
-  "JIU_JITSU",
-  "MUAY_THAI",
-  "FUNCIONAL",
-  "OTRO",
+const monthlyFees = [
+  { name: "Boxeo y MMA mujeres", amount: "$44.990" },
+  { name: "MMA, BJJ y Kickboxing", amount: "$49.990" },
+  { name: "MMA ninos", amount: "$39.990" },
+  { name: "BJJ ninos", amount: "$39.990" },
+  { name: "Matricula", amount: "$25.000" },
 ];
 
-const paymentMethods: PaymentMethod[] = [
-  "EFECTIVO",
-  "TRANSFERENCIA",
-  "TARJETA_DEBITO",
-  "TARJETA_CREDITO",
+const schedules = [
+  {
+    discipline: "MMA",
+    rows: [
+      "Horario 1: Lunes, miercoles y viernes a las 17:00 hrs",
+      "Horario 2: Lunes, miercoles y viernes a las 18:00 hrs",
+      "Horario 3: Lunes, miercoles y viernes a las 19:00 hrs",
+      "Horario 4: Lunes, miercoles y viernes a las 20:00 hrs",
+      "Horario 5: Martes y jueves a las 08:00 y sabados a las 09:00",
+      "Horario 6: Martes y jueves a las 20:15 y sabados a las 09:00",
+      "Horario 7: Lunes, miercoles y viernes a las 21:15 (solo competidores)",
+    ],
+  },
+  {
+    discipline: "Brazilian Jiu Jitsu",
+    rows: [
+      "Horario 1: Lunes, miercoles y viernes a las 20:00 hrs",
+      "Horario 2: Martes y jueves a las 18:00 hrs y sabados a las 10:15",
+      "Horario 3: Martes y jueves a las 19:00 hrs y sabados a las 10:15",
+      "Horario 4: Lunes, miercoles y viernes a las 18:00 hrs (solo mujeres)",
+    ],
+  },
+  {
+    discipline: "Kickboxing",
+    rows: [
+      "Horario 1: Lunes, miercoles y viernes a las 18:00 hrs",
+      "Horario 2: Lunes, miercoles y viernes a las 19:00 hrs",
+    ],
+  },
+  {
+    discipline: "Boxeo",
+    rows: [
+      "Horario 1: Lunes, miercoles y viernes a las 17:00",
+      "Horario 2: Lunes, miercoles y viernes a las 21:00",
+    ],
+  },
 ];
-
-const monthlyStatuses: MonthlyStatus[] = ["PAGADO", "PENDIENTE", "SALTADO"];
 
 function statusClass(status: MonthlyStatus): string {
   switch (status) {
@@ -45,6 +78,9 @@ function statusClass(status: MonthlyStatus): string {
 }
 
 export default async function Home() {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
   const students = await prisma.student.findMany({
     include: {
       monthlyPayments: {
@@ -82,119 +118,84 @@ export default async function Home() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_5%_10%,#f8f7ef_0,#e9f2ff_35%,#f2e7db_75%,#e8eceb_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <header className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-lg backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Academia Weichafe</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Control de alumnos, mensualidades y comprobantes</h1>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <Image src="/logo-weichafe-2026.png" alt="Logo Equipo Weichafe" width={84} height={84} className="rounded-full border border-emerald-500/40 bg-slate-900 p-1" priority />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Academia Weichafe</p>
+                <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Control de alumnos, mensualidades y comprobantes</h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right text-sm">
+                <p className="font-semibold text-slate-700">{session.name}</p>
+                <p className={`text-xs font-bold ${session.role === "ADMIN" ? "text-violet-600" : "text-slate-500"}`}>
+                  {session.role === "ADMIN" ? "Administrador" : "Funcionario"}
+                </p>
+              </div>
+              {session.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  className="rounded-xl border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+                >
+                  Gestionar usuarios
+                </Link>
+              )}
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-80"
+                >
+                  Cerrar sesión
+                </button>
+              </form>
+            </div>
+          </div>
           <p className="mt-3 max-w-3xl text-sm text-slate-600">
-            Registro con fecha de pago, disciplina pagada (MMA, Kick, Boxeo, Jiu Jitsu y mas), alertas de meses saltados y ventas por clase diaria.
+            Registro con fecha de pago, disciplina pagada (MMA, Kick, Boxeo, Jiu Jitsu y más), alertas de meses saltados y ventas por clase diaria.
           </p>
         </header>
 
+        <section className="grid gap-4 xl:grid-cols-2">
+          <article className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
+            <h2 className="text-xl font-bold">Valores mensuales</h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {monthlyFees.map((fee) => (
+                <li key={fee.name} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="font-medium text-slate-700">{fee.name}</span>
+                  <span className="font-bold text-slate-900">{fee.amount}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+
+          <article className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
+            <h2 className="text-xl font-bold">Horarios por disciplina</h2>
+            <div className="mt-3 space-y-3">
+              {schedules.map((group) => (
+                <div key={group.discipline} className="rounded-xl border border-slate-200 p-3">
+                  <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-800">{group.discipline}</h3>
+                  <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                    {group.rows.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-3">
-          <form action={createStudent} className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
-            <h2 className="text-lg font-bold">Nuevo alumno</h2>
-            <div className="mt-4 grid gap-3">
-              <input name="fullName" required placeholder="Nombre completo" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <label className="text-xs text-slate-600">
-                Fecha nacimiento
-                <input name="birthDate" type="date" required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              </label>
-              <input name="email" type="email" placeholder="Correo" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <input name="whatsapp" placeholder="WhatsApp" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <input name="address" placeholder="Direccion" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <input name="district" placeholder="Comuna" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <input name="emergencyPhone" placeholder="Telefono de emergencia" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-            </div>
-            <button className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Guardar alumno</button>
-          </form>
-
-          <form action={createMonthlyPayment} className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
-            <h2 className="text-lg font-bold">Registrar mensualidad</h2>
-            <div className="mt-4 grid gap-3">
-              <select name="studentId" required className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Selecciona alumno</option>
-                {students.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.fullName}
-                  </option>
-                ))}
-              </select>
-              <select name="discipline" required className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                {disciplines.map((discipline) => (
-                  <option key={discipline} value={discipline}>
-                    {disciplineLabel(discipline)}
-                  </option>
-                ))}
-              </select>
-              <label className="text-xs text-slate-600">
-                Mensualidad que paga
-                <input name="monthCovered" type="month" required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              </label>
-              <select name="status" required className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                {monthlyStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {statusLabel(status)}
-                  </option>
-                ))}
-              </select>
-              <input name="amount" type="number" min={0} placeholder="Monto" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <label className="text-xs text-slate-600">
-                Fecha pago
-                <input name="paidAt" type="date" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              </label>
-              <select name="paymentMethod" className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Metodo de pago (si pagado)</option>
-                {paymentMethods.map((method) => (
-                  <option key={method} value={method}>
-                    {paymentMethodLabel(method)}
-                  </option>
-                ))}
-              </select>
-              <input name="notes" placeholder="Notas" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-            </div>
-            <button className="mt-4 w-full rounded-xl bg-indigo-700 px-4 py-2 text-sm font-semibold text-white">Guardar mensualidad</button>
-          </form>
-
-          <form action={createDailyClassSale} className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
-            <h2 className="text-lg font-bold">Venta por clase diaria</h2>
-            <div className="mt-4 grid gap-3">
-              <select name="studentId" className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Sin alumno asociado</option>
-                {students.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.fullName}
-                  </option>
-                ))}
-              </select>
-              <input name="attendeeName" placeholder="Nombre asistente (opcional)" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <select name="discipline" required className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                {disciplines.map((discipline) => (
-                  <option key={discipline} value={discipline}>
-                    {disciplineLabel(discipline)}
-                  </option>
-                ))}
-              </select>
-              <label className="text-xs text-slate-600">
-                Fecha clase
-                <input name="classDate" type="date" required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              </label>
-              <input name="amount" type="number" min={0} placeholder="Monto clase" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-              <select name="paymentMethod" required className="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                {paymentMethods.map((method) => (
-                  <option key={method} value={method}>
-                    {paymentMethodLabel(method)}
-                  </option>
-                ))}
-              </select>
-              <input name="notes" placeholder="Notas" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
-            </div>
-            <button className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">Guardar clase diaria</button>
-          </form>
+          <StudentForm />
+          <PaymentForm students={students.map((s) => ({ id: s.id, fullName: s.fullName }))} />
+          <ClassForm students={students.map((s) => ({ id: s.id, fullName: s.fullName }))} />
         </section>
 
         <section className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
           <h2 className="text-xl font-bold">Alumnos y estado de mensualidades</h2>
           <div className="mt-4 grid gap-4">
-            {students.length === 0 ? <p className="text-sm text-slate-600">Aun no hay alumnos registrados.</p> : null}
+            {students.length === 0 ? <p className="text-sm text-slate-600">Aún no hay alumnos registrados.</p> : null}
             {students.map((student) => {
               const skippedByDiscipline = detectSkippedMonthsByDiscipline(student.monthlyPayments);
 

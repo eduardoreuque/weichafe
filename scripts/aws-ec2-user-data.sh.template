@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euxo pipefail
+cd /home/ec2-user
+yum install -y nodejs
+rm -rf /home/ec2-user/weichafe-standalone
+mkdir -p /home/ec2-user/weichafe-standalone
+curl -L "__SIGNED_URL__" -o /home/ec2-user/weichafe-standalone.tar.gz
+tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
+chown -R ec2-user:ec2-user /home/ec2-user/weichafe-standalone /home/ec2-user/weichafe-standalone.tar.gz
+cat >/etc/systemd/system/weichafe.service <<'SERVICE'
+[Unit]
+Description=Weichafe Next Standalone
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/weichafe-standalone
+Environment=HOSTNAME=0.0.0.0
+Environment=PORT=3000
+Environment=DATABASE_URL=file:./dev.db
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+systemctl daemon-reload
+systemctl enable weichafe.service
+systemctl restart weichafe.service

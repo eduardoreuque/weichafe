@@ -1,0 +1,74 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build y deploy en EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+
+      - name: Build Next.js standalone
+        run: npm run build
+        env:
+          DATABASE_URL: file:./prisma/dev.db
+
+      - name: Copiar archivos estáticos al standalone
+        run: node scripts/prepare-standalone.cjs
+
+      - name: Empaquetar standalone
+        run: tar czf /tmp/weichafe-standalone.tar.gz -C .next/standalone .
+
+      - name: Preparar clave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/weichafe-ec2
+          chmod 600 ~/.ssh/weichafe-ec2
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Subir paquete al servidor
+        run: |
+          scp -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              /tmp/weichafe-standalone.tar.gz \
+              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone.tar.gz
+
+      - name: Desplegar y reiniciar servicio
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+            set -e
+            mkdir -p ~/weichafe-standalone
+            tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone
+            sudo systemctl restart weichafe.service
+            sleep 3
+            sudo systemctl is-active weichafe.service
+          '
+
+      - name: Verificar que la app responde
+        run: |
+          sleep 5
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              'curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/login'

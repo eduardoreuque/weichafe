@@ -9,21 +9,14 @@ import {
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
+export type ActionResult = { ok: true } | { ok: false; error: string };
+
 const disciplines = new Set<Discipline>([
-  "MMA",
-  "KICK",
-  "BOXEO",
-  "JIU_JITSU",
-  "MUAY_THAI",
-  "FUNCIONAL",
-  "OTRO",
+  "MMA", "KICK", "BOXEO", "JIU_JITSU", "MUAY_THAI", "FUNCIONAL", "OTRO",
 ]);
 
 const paymentMethods = new Set<PaymentMethod>([
-  "EFECTIVO",
-  "TRANSFERENCIA",
-  "TARJETA_DEBITO",
-  "TARJETA_CREDITO",
+  "EFECTIVO", "TRANSFERENCIA", "TARJETA_DEBITO", "TARJETA_CREDITO",
 ]);
 
 const monthlyStatuses = new Set<MonthlyStatus>(["PAGADO", "PENDIENTE", "SALTADO"]);
@@ -47,46 +40,51 @@ function createReceiptNumber(): string {
   const min = String(now.getMinutes()).padStart(2, "0");
   const sec = String(now.getSeconds()).padStart(2, "0");
   const rand = String(Math.floor(Math.random() * 900) + 100);
-
   return `REC-${y}${m}${d}-${h}${min}${sec}-${rand}`;
 }
 
-export async function createStudent(formData: FormData): Promise<void> {
+export async function createStudentAction(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
   const fullName = normalizeString(formData.get("fullName"));
   const birthDateRaw = normalizeString(formData.get("birthDate"));
 
-  if (!fullName || !birthDateRaw) {
-    return;
+  if (!fullName) return { ok: false, error: "El nombre completo es requerido" };
+  if (!birthDateRaw) return { ok: false, error: "La fecha de nacimiento es requerida" };
+
+  try {
+    await prisma.student.create({
+      data: {
+        fullName,
+        birthDate: new Date(birthDateRaw),
+        email: normalizeString(formData.get("email")),
+        whatsapp: normalizeString(formData.get("whatsapp")),
+        address: normalizeString(formData.get("address")),
+        district: normalizeString(formData.get("district")),
+        emergencyPhone: normalizeString(formData.get("emergencyPhone")),
+      },
+    });
+    revalidatePath("/");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "No se pudo guardar el alumno. Intenta nuevamente." };
   }
-
-  await prisma.student.create({
-    data: {
-      fullName,
-      birthDate: new Date(birthDateRaw),
-      email: normalizeString(formData.get("email")),
-      whatsapp: normalizeString(formData.get("whatsapp")),
-      address: normalizeString(formData.get("address")),
-      district: normalizeString(formData.get("district")),
-      emergencyPhone: normalizeString(formData.get("emergencyPhone")),
-    },
-  });
-
-  revalidatePath("/");
 }
 
-export async function createMonthlyPayment(formData: FormData): Promise<void> {
+export async function createMonthlyPaymentAction(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
   const studentId = normalizeString(formData.get("studentId"));
   const discipline = normalizeString(formData.get("discipline")) as Discipline | null;
   const status = normalizeString(formData.get("status")) as MonthlyStatus | null;
   const monthCoveredRaw = normalizeString(formData.get("monthCovered"));
 
-  if (!studentId || !discipline || !status || !monthCoveredRaw) {
-    return;
-  }
-
-  if (!disciplines.has(discipline) || !monthlyStatuses.has(status)) {
-    return;
-  }
+  if (!studentId) return { ok: false, error: "Selecciona un alumno" };
+  if (!discipline || !disciplines.has(discipline)) return { ok: false, error: "Disciplina inválida" };
+  if (!status || !monthlyStatuses.has(status)) return { ok: false, error: "Estado inválido" };
+  if (!monthCoveredRaw) return { ok: false, error: "La mensualidad que paga es requerida" };
 
   const amount = normalizeInt(formData.get("amount"));
   const paidAtRaw = normalizeString(formData.get("paidAt"));
@@ -98,92 +96,102 @@ export async function createMonthlyPayment(formData: FormData): Promise<void> {
   const data: Prisma.MonthlyPaymentCreateInput = {
     amount,
     discipline,
-    monthCovered: new Date(yearMonth),
-    notes: normalizeString(formData.get("notes")),
     status,
+    monthCovered: new Date(yearMonth),
     paidAt,
-    student: {
-      connect: {
-        id: studentId,
-      },
-    },
     paymentMethod: paymentMethodRaw && paymentMethods.has(paymentMethodRaw) ? paymentMethodRaw : null,
+    notes: normalizeString(formData.get("notes")),
+    student: { connect: { id: studentId } },
   };
 
-  const created = await prisma.monthlyPayment.create({
-    data,
-    include: {
-      student: true,
-    },
-  });
+  try {
+    const created = await prisma.monthlyPayment.create({ data, include: { student: true } });
 
-  if (created.status === "PAGADO" && created.paymentMethod) {
-    await prisma.receipt.create({
-      data: {
-        receiptNumber: createReceiptNumber(),
-        amount: created.amount,
-        description: `Mensualidad ${created.discipline} - ${created.monthCovered.toISOString().slice(0, 7)}`,
-        paymentMethod: created.paymentMethod,
-        studentId: created.studentId,
-        monthlyPaymentId: created.id,
-        issuedAt: created.paidAt ?? new Date(),
-      },
-    });
+    if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
+      await prisma.receipt.create({
+        data: {
+          receiptNumber: createReceiptNumber(),
+          amount: created.amount,
+          description: `Mensualidad ${created.discipline} - ${new Date(yearMonth).toLocaleDateString("es-CL", { month: "long", year: "numeric" })}`,
+          paymentMethod: paymentMethodRaw,
+          studentId: studentId,
+          monthlyPaymentId: created.id,
+          issuedAt: paidAt ?? new Date(),
+        },
+      });
+    }
+
+    revalidatePath("/");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "No se pudo registrar la mensualidad. Intenta nuevamente." };
   }
-
-  revalidatePath("/");
 }
 
-export async function createDailyClassSale(formData: FormData): Promise<void> {
+export async function createDailyClassSaleAction(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const studentIdRaw = normalizeString(formData.get("studentId"));
   const discipline = normalizeString(formData.get("discipline")) as Discipline | null;
   const classDateRaw = normalizeString(formData.get("classDate"));
-  const paymentMethod = normalizeString(formData.get("paymentMethod")) as PaymentMethod | null;
+  const paymentMethodRaw = normalizeString(formData.get("paymentMethod")) as PaymentMethod | null;
 
-  if (!discipline || !classDateRaw || !paymentMethod) {
-    return;
-  }
+  if (!discipline || !disciplines.has(discipline)) return { ok: false, error: "Disciplina inválida" };
+  if (!classDateRaw) return { ok: false, error: "La fecha de clase es requerida" };
+  if (!paymentMethodRaw || !paymentMethods.has(paymentMethodRaw)) return { ok: false, error: "Método de pago requerido" };
 
-  if (!disciplines.has(discipline) || !paymentMethods.has(paymentMethod)) {
-    return;
-  }
-
-  const studentId = normalizeString(formData.get("studentId"));
   const amount = normalizeInt(formData.get("amount"));
+  const attendeeName = normalizeString(formData.get("attendeeName"));
+  const studentId = studentIdRaw ?? null;
 
-  const created = await prisma.dailyClassSale.create({
-    data: {
-      discipline,
-      classDate: new Date(classDateRaw),
-      paymentMethod,
-      amount,
-      notes: normalizeString(formData.get("notes")),
-      attendeeName: normalizeString(formData.get("attendeeName")),
-      student: studentId
-        ? {
-            connect: {
-              id: studentId,
-            },
-          }
-        : undefined,
-    },
-    include: {
-      student: true,
-    },
-  });
-
-  if (created.studentId) {
-    await prisma.receipt.create({
-      data: {
-        receiptNumber: createReceiptNumber(),
-        amount: created.amount,
-        description: `Clase diaria ${created.discipline}`,
-        paymentMethod: created.paymentMethod,
-        studentId: created.studentId,
-        dailyClassSaleId: created.id,
-        issuedAt: created.classDate,
-      },
-    });
+  if (!studentId && !attendeeName) {
+    return { ok: false, error: "Indica el alumno o el nombre del asistente" };
   }
 
-  revalidatePath("/");
+  try {
+    const created = await prisma.dailyClassSale.create({
+      data: {
+        discipline,
+        classDate: new Date(classDateRaw),
+        amount,
+        paymentMethod: paymentMethodRaw,
+        notes: normalizeString(formData.get("notes")),
+        attendeeName,
+        student: studentId ? { connect: { id: studentId } } : undefined,
+      },
+      include: { student: true },
+    });
+
+    const receiptStudentId = created.studentId;
+    if (receiptStudentId) {
+      await prisma.receipt.create({
+        data: {
+          receiptNumber: createReceiptNumber(),
+          amount: created.amount,
+          description: `Clase diaria ${created.discipline}`,
+          paymentMethod: created.paymentMethod,
+          studentId: receiptStudentId,
+          dailyClassSaleId: created.id,
+          issuedAt: created.classDate,
+        },
+      });
+    }
+
+    revalidatePath("/");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "No se pudo registrar la clase diaria. Intenta nuevamente." };
+  }
+}
+
+export async function deleteStudentAction(studentId: string): Promise<ActionResult> {
+  if (!studentId) return { ok: false, error: "ID de alumno requerido" };
+  try {
+    await prisma.student.delete({ where: { id: studentId } });
+    revalidatePath("/");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "No se pudo eliminar el alumno." };
+  }
 }

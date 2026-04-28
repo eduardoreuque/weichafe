@@ -1,119 +1,154 @@
-# Weichafe - Gestion de Academia (PC y Celular)
+# Weichafe - Gestion de Academia
 
-Aplicacion web responsiva para administrar alumnos, mensualidades, clases diarias y comprobantes de pago.
+Aplicacion para PC, celular y tablet para administrar alumnos, mensualidades, clases diarias, horarios y comprobantes.
 
-## Funcionalidades incluidas
+## Funcionalidades
 
-- Perfil de alumno con:
-	- Nombre completo
-	- Fecha de nacimiento y edad calculada
-	- Correo
-	- WhatsApp
-	- Direccion y comuna
-	- Telefono de emergencia
-- Registro de mensualidades:
-	- Fecha de pago
-	- Mes que cubre la mensualidad
-	- Disciplina (MMA, Kick, Boxeo, Jiu Jitsu, etc.)
-	- Estado: pagado, pendiente o saltado
-	- Historial por alumno
-- Deteccion visual de meses saltados por disciplina.
-- Venta por clase diaria (clase suelta).
-- Emision de comprobantes con metodo de pago:
-	- Efectivo
-	- Transferencia
-	- Tarjeta debito
-	- Tarjeta credito
-- Vista imprimible de comprobante.
+- Perfil completo de alumno: nombre, fecha nacimiento, edad, correo, WhatsApp, direccion, comuna y telefono de emergencia.
+- Registro de mensualidades con:
+  - Fecha de pago
+  - Mes que cubre
+  - Disciplina
+  - Estado (pagado, pendiente, saltado)
+- Alerta visual de meses saltados.
+- Venta por clase diaria.
+- Emision de comprobantes por metodo de pago.
+- Logo institucional integrado en dashboard y comprobantes.
+- Panel de valores y horarios de la academia.
+
+## Valores mensuales configurados
+
+- Boxeo y MMA mujeres: $44.990
+- MMA, BJJ y Kickboxing: $49.990
+- MMA ninos: $39.990
+- BJJ ninos: $39.990
+- Matricula: $25.000
+
+## Horarios cargados
+
+- MMA (7 bloques)
+- Brazilian Jiu Jitsu (4 bloques)
+- Kickboxing (2 bloques)
+- Boxeo (2 bloques)
 
 ## Stack
 
-- Next.js 16 + TypeScript + App Router
-- Prisma ORM
-- SQLite (archivo local)
-- Tailwind CSS
+- Next.js 16 + TypeScript
+- Prisma + SQLite
+- Electron + electron-builder (Windows/macOS)
+- Capacitor Android + iOS
 
-## Ejecutar en local
-
-1. Instalar dependencias
+## Desarrollo local
 
 ```bash
 npm install
-```
-
-2. Configurar variables de entorno
-
-```bash
 cp .env.example .env
-```
-
-3. Crear base de datos y tablas
-
-```bash
 npm run prisma:migrate -- --name init
-```
-
-4. Cargar datos de ejemplo
-
-```bash
 npm run db:seed
-```
-
-5. Levantar en desarrollo
-
-```bash
 npm run dev
 ```
 
-App disponible en http://localhost:3000.
-
-## Build de produccion
+## Build web produccion
 
 ```bash
 npm run build
 npm run start
 ```
 
-## Estructura principal
+## App de escritorio
 
-- prisma/schema.prisma: modelos de datos
-- prisma/seed.ts: datos iniciales
-- src/app/page.tsx: dashboard principal y formularios
-- src/app/actions.ts: acciones del servidor
-- src/app/comprobantes/[id]/page.tsx: comprobante imprimible
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
+Modo desarrollo desktop:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run desktop:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Empaquetado base (carpeta ejecutable sin instalador):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run desktop:pack
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Instalador Windows (NSIS):
 
-## Learn More
+```bash
+npm run desktop:win
+```
 
-To learn more about Next.js, take a look at the following resources:
+App macOS (DMG):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run desktop:mac
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Los artefactos quedan en `dist-electron/`.
 
-## Deploy on Vercel
+Para reunir instaladores en una sola carpeta:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run collect:installers
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Se guardan en `installers/`.
+
+## App Android
+
+La app Android se genera como contenedor nativo (WebView) con Capacitor.
+
+1. Reemplaza el dominio en `capacitor.config.ts` (`server.url`) por la URL publica de tu sistema.
+2. Sincroniza Android:
+
+```bash
+npm run android:sync
+```
+
+3. Abre Android Studio:
+
+```bash
+npm run android:open
+```
+
+4. Desde Android Studio compila APK/AAB.
+
+Opcional por terminal (requiere Android SDK configurado):
+
+```bash
+npm run android:apk:debug
+```
+
+## App iOS
+
+La app iOS tambien funciona como contenedor nativo (WebView) con Capacitor.
+
+1. Reemplaza el dominio en `capacitor.config.ts` (`server.url`) por tu URL publica.
+2. Sincroniza iOS:
+
+```bash
+npm run ios:sync
+```
+
+3. Abre Xcode:
+
+```bash
+npm run ios:open
+```
+
+4. En Xcode selecciona Team/Signing y genera el build para simulador o dispositivo.
+5. Para IPA de distribucion necesitas certificados/perfiles de Apple Developer.
+
+## Base de datos y donde se guarda la data
+
+La app usa Prisma con SQLite.
+
+- En desarrollo web local: la base queda en `prisma/dev.db`.
+- En app de escritorio instalada: la base se copia/usa en la carpeta de usuario del sistema (no dentro del bundle), archivo `weichafe.db`.
+
+Rutas tipicas:
+
+- macOS: `~/Library/Application Support/Weichafe/weichafe.db`
+- Windows: `%APPDATA%/Weichafe/weichafe.db`
+
+## Logo
+
+- Logo web/recibos: `public/logo-weichafe.svg`
+- Icono instaladores: `public/logo-weichafe.png`

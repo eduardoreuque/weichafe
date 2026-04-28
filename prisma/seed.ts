@@ -1,4 +1,5 @@
-import { Discipline, MonthlyStatus, PaymentMethod, PrismaClient } from "@prisma/client";
+import { Discipline, MonthlyStatus, PaymentMethod, PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -7,6 +8,34 @@ async function main() {
   await prisma.dailyClassSale.deleteMany();
   await prisma.monthlyPayment.deleteMany();
   await prisma.student.deleteMany();
+
+  // Usuarios por defecto (solo crea si no existen)
+  const adminEmail = "admin@weichafe.cl";
+  const staffEmail = "funcionario@weichafe.cl";
+
+  const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!adminExists) {
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash: await bcrypt.hash("admin2024", 12),
+        name: "Administrador",
+        role: Role.ADMIN,
+      },
+    });
+  }
+
+  const staffExists = await prisma.user.findUnique({ where: { email: staffEmail } });
+  if (!staffExists) {
+    await prisma.user.create({
+      data: {
+        email: staffEmail,
+        passwordHash: await bcrypt.hash("staff2024", 12),
+        name: "Funcionario",
+        role: Role.STAFF,
+      },
+    });
+  }
 
   const student = await prisma.student.create({
     data: {

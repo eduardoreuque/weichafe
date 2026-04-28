@@ -1,11 +1,25 @@
 {
   "name": "weichafe",
   "version": "0.1.0",
+  "description": "Gestion de academia Weichafe para mensualidades, clases y comprobantes",
+  "author": "Equipo Weichafe",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:desktop": "next build && node scripts/prepare-standalone.cjs",
     "start": "next start",
+    "desktop:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
+    "desktop:pack": "npm run build:desktop && electron-builder --dir",
+    "desktop:win": "npm run build:desktop && electron-builder --win nsis",
+    "desktop:mac": "npm run build:desktop && electron-builder --mac dmg",
+    "ios:sync": "npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:apk:debug": "cd android && ./gradlew assembleDebug",
+    "collect:installers": "node scripts/collect-installers.cjs",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -15,21 +29,66 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@capacitor/core": "^8.3.1",
     "@prisma/client": "^6.17.1",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.3",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "prisma": "^6.17.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.weichafe.desktop",
+    "productName": "Weichafe",
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*",
+      "prisma/**/*",
+      "node_modules/@prisma/**/*",
+      "node_modules/.prisma/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist-electron"
+    },
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "win": {
+      "icon": "public/logo-weichafe.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "icon": "public/logo-weichafe.png",
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.business"
+    }
   }
 }

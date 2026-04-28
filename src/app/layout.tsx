@@ -15,6 +15,10 @@ const displayFont = Oswald({
 export const metadata: Metadata = {
   title: "Weichafe | Gestion Academia",
   description: "App de alumnos, mensualidades, clases diarias y comprobantes.",
+  icons: {
+    icon: "/logo-weichafe-2026.png",
+    apple: "/logo-weichafe-2026.png",
+  },
 };
 
 export default function RootLayout({
