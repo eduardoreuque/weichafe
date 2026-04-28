@@ -12,7 +12,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-3xl border border-black/10 bg-white/90 p-8 shadow-xl backdrop-blur">
         <div className="mb-6 flex flex-col items-center gap-3">
           <Image
-            src="/logo-weichafe-2026.png"
+            src="/weichafe.jpg"
             alt="Logo Equipo Weichafe"
             width={72}
             height={72}

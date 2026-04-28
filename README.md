@@ -150,5 +150,4 @@ Rutas tipicas:
 
 ## Logo
 
-- Logo web/recibos: `public/logo-weichafe.svg`
-- Icono instaladores: `public/logo-weichafe.png`
+- Logo unico web, recibos e instaladores: `public/weichafe.jpg`

@@ -78,13 +78,13 @@
       "main": "electron/main.cjs"
     },
     "win": {
-      "icon": "public/logo-weichafe.png",
+      "icon": "public/weichafe.jpg",
       "target": [
         "nsis"
       ]
     },
     "mac": {
-      "icon": "public/logo-weichafe.png",
+      "icon": "public/weichafe.jpg",
       "target": [
         "dmg"
       ],

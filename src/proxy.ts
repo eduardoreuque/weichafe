@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico", "/logo-weichafe.svg", "/logo-weichafe.png", "/logo-weichafe-2026.png"];
+const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico", "/weichafe.jpg"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,5 +22,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

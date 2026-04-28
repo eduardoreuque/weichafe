@@ -31,7 +31,7 @@ export default async function AdminPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-4">
               <Image
-                src="/logo-weichafe-2026.png"
+                src="/weichafe.jpg"
                 alt="Logo Equipo Weichafe"
                 width={52}
                 height={52}

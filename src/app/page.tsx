@@ -120,7 +120,7 @@ export default async function Home() {
         <header className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-lg backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4">
-              <Image src="/logo-weichafe-2026.png" alt="Logo Equipo Weichafe" width={84} height={84} className="rounded-full border border-emerald-500/40 bg-slate-900 p-1" priority />
+              <Image src="/weichafe.jpg" alt="Logo Equipo Weichafe" width={84} height={84} className="rounded-full border border-emerald-500/40 bg-slate-900 p-1" priority />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Academia Weichafe</p>
                 <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Control de alumnos, mensualidades y comprobantes</h1>

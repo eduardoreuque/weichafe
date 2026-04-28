@@ -20,7 +20,7 @@
 - El proxy de Next.js 16 está en src/proxy.ts (no middleware.ts). La función exportada se llama `proxy`.
 - La cookie de sesión NO usa `secure: true` en HTTP — se controla con la variable COOKIE_SECURE=true solo si hay HTTPS.
 - La base de datos dev.db está en .gitignore y NO se sube a GitHub.
-- El logo oficial es /public/logo-weichafe-2026.png.
+- El logo oficial es /public/weichafe.jpg.
 
 ## Deploy manual
 ```bash
