@@ -1,10 +1,9 @@
-# Instrucciones Copilot — Proyecto Weichafe (AISLADO de FTC)
+# Instrucciones Copilot — Proyecto Weichafe
 
 ## Identidad del proyecto
 - **Propietario:** Eduardo Reuque (cuenta personal GitHub: eduardoreuque)
 - **Repositorio:** https://github.com/eduardoreuque/weichafe
 - **Ubicación local:** ~/Projects/weichafe
-- **Este proyecto NO pertenece a ereuqueb_FTC ni a ningún workspace corporativo.**
 
 ## Stack técnico
 - Next.js 16.2.4 (App Router, Turbopack, standalone output)
@@ -36,7 +35,5 @@ ssh -i ~/.ssh/weichafe-ec2 ec2-user@54.226.22.80 'mkdir -p ~/weichafe-standalone
 - funcionario@weichafe.cl / staff2024
 - Cambiar con el script en README-CAMBIO-CONTRASENAS.md
 
-## Separación de proyectos FTC
-- Los proyectos FTC (ereuqueb_FTC) van en carpetas separadas y tienen su propio .github/copilot-instructions.md.
-- Nunca mezclar instrucciones, credenciales ni configuración de ambos entornos.
+## Git
 - Git user local de este repo: Eduardo Reuque <eduardoreuque@gmail.com>
