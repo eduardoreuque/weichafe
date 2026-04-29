@@ -1,0 +1,94 @@
+name: Terraform Infra
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Operacion Terraform"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      instance_type:
+        description: "Tipo de instancia"
+        required: true
+        default: "t3.micro"
+        type: string
+      root_volume_size:
+        description: "Disco root en GB"
+        required: true
+        default: "8"
+        type: string
+      allow_ssh_cidr:
+        description: "CIDR para SSH"
+        required: true
+        default: "0.0.0.0/0"
+        type: string
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+      TF_VAR_ami_id: ${{ secrets.TF_VAR_AMI_ID }}
+      TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
+      TF_VAR_instance_name: weichafe-ec2
+      TF_VAR_instance_type: ${{ github.event.inputs.instance_type }}
+      TF_VAR_root_volume_size: ${{ github.event.inputs.root_volume_size }}
+      TF_VAR_allow_ssh_cidr: ${{ github.event.inputs.allow_ssh_cidr }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Configurar backend remoto (Terraform Cloud)
+        run: |
+          cat > backend_override.tf << 'EOF'
+          terraform {
+            cloud {
+              organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
+              workspaces {
+                name = "${{ secrets.TF_CLOUD_WORKSPACE }}"
+              }
+            }
+          }
+          EOF
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: ${{ github.event.inputs.action == 'plan' || github.event.inputs.action == 'apply' }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        run: terraform destroy -auto-approve
+
+      - name: Mostrar outputs
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: terraform output

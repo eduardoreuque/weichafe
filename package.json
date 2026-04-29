@@ -20,6 +20,7 @@
     "android:open": "npx cap open android",
     "android:apk:debug": "cd android && ./gradlew assembleDebug",
     "collect:installers": "node scripts/collect-installers.cjs",
+    "cost:estimate": "node scripts/cost-calculator.cjs",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
