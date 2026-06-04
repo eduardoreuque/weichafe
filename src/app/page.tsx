@@ -17,6 +17,7 @@ import { logoutAction } from "@/app/login/actions";
 import { StudentForm } from "@/components/student-form";
 import { PaymentForm } from "@/components/payment-form";
 import { ClassForm } from "@/components/class-form";
+import { StudentDeleteButton } from "@/components/student-delete-button";
 
 const monthlyFees = [
   { name: "Boxeo y MMA mujeres", amount: "$44.990" },
@@ -260,12 +261,19 @@ export default async function Home() {
                         Nacimiento: {toDateLabel(student.birthDate)} ({calculateAge(student.birthDate)} anos)
                       </p>
                     </div>
-                    <div className="text-xs text-slate-600">
-                      <p>Correo: {student.email ?? "-"}</p>
-                      <p>WhatsApp: {student.whatsapp ?? "-"}</p>
-                      <p>Direccion: {student.address ?? "-"}</p>
-                      <p>Comuna: {student.district ?? "-"}</p>
-                      <p>Emergencia: {student.emergencyPhone ?? "-"}</p>
+                    <div>
+                      <div className="text-xs text-slate-600">
+                        <p>Correo: {student.email ?? "-"}</p>
+                        <p>WhatsApp: {student.whatsapp ?? "-"}</p>
+                        <p>Direccion: {student.address ?? "-"}</p>
+                        <p>Comuna: {student.district ?? "-"}</p>
+                        <p>Emergencia: {student.emergencyPhone ?? "-"}</p>
+                      </div>
+                      {session.role === "ADMIN" ? (
+                        <div className="mt-2">
+                          <StudentDeleteButton studentId={student.id} studentName={student.fullName} />
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 

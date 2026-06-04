@@ -59,3 +59,50 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Sesion expirada. Inicia sesion nuevamente." }, { status: 401 });
+  }
+
+  if (session.role !== "ADMIN") {
+    return NextResponse.json({ ok: false, error: "No tienes permisos para eliminar alumnos." }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const studentId = normalizeString(searchParams.get("id"));
+
+  if (!studentId) {
+    return NextResponse.json({ ok: false, error: "Falta el id del alumno." }, { status: 400 });
+  }
+
+  try {
+    const exists = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      return NextResponse.json({ ok: false, error: "Alumno no encontrado." }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.dailyClassSale.deleteMany({
+        where: { studentId },
+      });
+
+      await tx.student.delete({
+        where: { id: studentId },
+      });
+    });
+
+    revalidatePath("/");
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "No se pudo eliminar el alumno. Intenta nuevamente." },
+      { status: 500 }
+    );
+  }
+}

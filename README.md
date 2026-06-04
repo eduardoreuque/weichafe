@@ -155,3 +155,24 @@ Rutas tipicas:
 ## Documentación técnica
 
 - [Arquitectura, diagramas de flujo y stack detallado](docs/ARCHITECTURE.md)
+- [Operacion AWS (encender, desplegar y apagar)](docs/AWS-OPERACION.md)
+
+## Operacion rapida AWS
+
+Desde cualquier equipo con acceso al repo y credenciales:
+
+```bash
+git clone https://github.com/eduardoreuque/weichafe.git
+cd weichafe
+npm install
+./scripts/ec2-control.sh start
+./scripts/deploy-ec2.sh
+./scripts/ec2-control.sh stop
+```
+
+Comandos utiles:
+
+```bash
+./scripts/ec2-control.sh status
+./scripts/ec2-control.sh url
+```
