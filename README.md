@@ -157,6 +157,7 @@ Rutas tipicas:
 - [Arquitectura, diagramas de flujo y stack detallado](docs/ARCHITECTURE.md)
 - [Operacion AWS (encender, desplegar y apagar)](docs/AWS-OPERACION.md)
 - [Bootstrap de infraestructura AWS desde cero](docs/AWS-BOOTSTRAP.md)
+- [Auto Deploy y Teardown (GitHub Actions)](docs/AWS_AUTODEPLOY.md)
 
 ## Operacion rapida AWS
 
