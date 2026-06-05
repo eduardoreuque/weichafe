@@ -47,7 +47,7 @@ jobs:
 
       - name: Subir paquete al servidor
         run: |
-          scp -i ~/.ssh/weichafe-ec2 \
+          scp -v -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
               /tmp/weichafe-standalone.tar.gz \
               ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone.tar.gz
