@@ -52,7 +52,7 @@ jobs:
               /tmp/weichafe-standalone.tar.gz \
               ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone.tar.gz
 
-      - name: Desplegar y reiniciar servicio
+      - name: Desplegar y aplicar migraciones
         run: |
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
@@ -60,6 +60,17 @@ jobs:
             set -e
             mkdir -p ~/weichafe-standalone
             tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone
+            # instalar dependencias si existe package.json (para poder ejecutar npx prisma)
+            if [ -f ~/weichafe-standalone/package.json ]; then
+              cd ~/weichafe-standalone
+              npm ci --no-audit --no-fund || true
+            fi
+            # aplicar migraciones si vienen en el paquete
+            if [ -d ~/weichafe-standalone/prisma ]; then
+              cd ~/weichafe-standalone
+              npx prisma migrate deploy --schema=./prisma/schema.prisma || true
+            fi
+            sudo systemctl daemon-reload || true
             sudo systemctl restart weichafe.service
             sleep 3
             sudo systemctl is-active weichafe.service

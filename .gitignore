@@ -58,3 +58,9 @@ prisma/*.db-wal
 .env
 .env.local
 .env.production
+
+# terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl

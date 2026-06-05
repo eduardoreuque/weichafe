@@ -25,5 +25,7 @@ if (!fs.existsSync(standaloneDir)) {
 
 copyDir(publicDir, path.join(standaloneDir, "public"));
 copyDir(staticDir, path.join(standaloneDir, ".next", "static"));
+// Incluir las migraciones y schema de Prisma en el standalone para poder aplicar migraciones en el servidor
+copyDir(path.join(root, "prisma"), path.join(standaloneDir, "prisma"));
 
 console.log("Standalone listo para Electron.");
