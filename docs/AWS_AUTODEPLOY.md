@@ -18,9 +18,31 @@ REQUISITOS (GitHub repository secrets):
 
 USO:
 
+### GitHub Actions (recomendado)
+
 1. Añade los secrets en Settings → Secrets and variables → Actions.
 2. Abre la pestaña Actions → `Auto Deploy and Teardown` → `Run workflow`.
 3. Ajusta `keep_alive_minutes` (por defecto 10). Si pones `0`, el workflow no apagará la instancia.
+
+### Manual desde otro equipo
+
+Si prefieres ejecutar desde tu propio laptop o una terminal remota:
+
+```bash
+cd weichafe
+export AWS_REGION=us-east-1
+export EC2_INSTANCE_ID=i-0ee7429f5b6b2d10a
+export SSH_KEY=~/.ssh/weichafe-ec2
+./scripts/deploy-ec2.sh
+```
+
+También puedes iniciar/detener la instancia y obtener la URL con:
+
+```bash
+./scripts/ec2-control.sh start
+./scripts/ec2-control.sh url
+./scripts/ec2-control.sh stop
+```
 
 FUNCIONAMIENTO:
 
@@ -38,7 +60,8 @@ SEGURIDAD Y COSTOS:
 
 LIMITACIONES Y NOTAS:
 
-- El deploy se realiza con `scripts/deploy-ec2.sh`, que espera poder hacer `scp`/`ssh` al host; el workflow escribe la clave en el runner y la usa durante el job.
-- Si prefieres provisionar/destruir instancias (terraform), el workflow puede extenderse para aplicar/destroy con `terraform`.
+- El deploy se realiza con `scripts/deploy-ec2.sh`, que ahora puede resolver la IP pública a partir de `EC2_INSTANCE_ID` o usar `EC2_HOST` si se define.
+- Para ejecutar manualmente desde otra ubicación, configura `AWS_REGION`, `EC2_INSTANCE_ID` y `SSH_KEY`.
+- Si prefieres provisionar/destruir instancias (Terraform), el workflow puede extenderse para aplicar/destroy con `terraform`.
 
 Si quieres, puedo adaptar el workflow para crear/terminar instancias dinámicamente (Terraform), en vez de usar una instancia preexistente.

@@ -161,13 +161,23 @@ Rutas tipicas:
 
 ## Operacion rapida AWS
 
-Desde cualquier equipo con acceso al repo y credenciales:
+### Desde otro equipo usando GitHub Actions
+
+Este repo incluye un workflow que arranca la instancia, despliega la app, comprueba `/login` y apaga la instancia automáticamente.
+
+1. Agrega secrets en GitHub: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `EC2_INSTANCE_ID`, `SSH_PRIVATE_KEY`.
+2. Entra a Actions → `Auto Deploy and Teardown`.
+3. Ejecuta el workflow y ajusta `keep_alive_minutes`.
+
+### Desde otro equipo usando el script manual
 
 ```bash
 git clone https://github.com/eduardoreuque/weichafe.git
 cd weichafe
 npm install
-./scripts/ec2-control.sh start
+export AWS_REGION=us-east-1
+export EC2_INSTANCE_ID=i-0ee7429f5b6b2d10a
+export SSH_KEY=~/.ssh/weichafe-ec2
 ./scripts/deploy-ec2.sh
 ./scripts/ec2-control.sh stop
 ```
@@ -177,4 +187,8 @@ Comandos utiles:
 ```bash
 ./scripts/ec2-control.sh status
 ./scripts/ec2-control.sh url
+./scripts/ec2-control.sh start
+./scripts/ec2-control.sh stop
 ```
+
+La forma recomendada es usar GitHub Actions para evitar tener que ejecutar comandos directos desde tu laptop y para apagar automáticamente la instancia.

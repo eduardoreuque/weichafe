@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-EC2_HOST="${EC2_HOST:-54.172.208.119}"
+EC2_HOST="${EC2_HOST:-}"
+EC2_INSTANCE_ID="${EC2_INSTANCE_ID:-}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/weichafe-ec2}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="${APP_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -33,13 +35,38 @@ if [[ ! -f "$SSH_KEY" ]]; then
   echo "No existe la llave SSH: $SSH_KEY"
   exit 1
 fi
-
+resolve_ec2_host() {
+  if [[ -n "$EC2_HOST" ]]; then
+    echo "$EC2_HOST"
+    return 0
+  fi
+  if [[ -n "$EC2_INSTANCE_ID" ]]; then
+    if ! command -v aws >/dev/null 2>&1; then
+      echo "aws CLI no disponible para resolver EC2_INSTANCE_ID" >&2
+      return 1
+    fi
+    local ip
+    ip=$(aws ec2 describe-instances --region "$AWS_REGION" --instance-ids "$EC2_INSTANCE_ID" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+    if [[ -z "$ip" || "$ip" == "None" ]]; then
+      echo "No se pudo resolver la IP pública para INSTANCE_ID=$EC2_INSTANCE_ID" >&2
+      return 1
+    fi
+    echo "$ip"
+    return 0
+  fi
+  echo "No se ha definido EC2_HOST ni EC2_INSTANCE_ID" >&2
+  return 1
+}
 if [[ ! -d "$APP_DIR" ]]; then
   echo "No existe el proyecto: $APP_DIR"
   exit 1
 fi
 
 cd "$APP_DIR"
+
+log "Resolviendo host de EC2"
+EC2_HOST="$(resolve_ec2_host)"
+log "EC2_HOST=$EC2_HOST"
 
 log "Build de produccion"
 npm run build
