@@ -8,9 +8,14 @@ export function CreateUserForm() {
   const [state, formAction, isPending] = useActionState(createUserAction, null);
   const [formKey, setFormKey] = useState(0);
 
+  // Reset form after successful creation
   useEffect(() => {
-    if (state?.ok === true) setFormKey((k) => k + 1);
-  }, [state]);
+    if (state?.ok === true) {
+      // Use setTimeout to avoid cascading renders
+      const timer = setTimeout(() => setFormKey((k) => k + 1), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [state?.ok]);
 
   return (
     <form

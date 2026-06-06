@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // CommonJS scripts and generated files
+    "**/*.cjs",
+    "android/**",
+    "ios/**",
+    "dist-electron/**",
   ]),
 ]);
 

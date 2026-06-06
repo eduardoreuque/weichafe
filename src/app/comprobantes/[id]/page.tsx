@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/print-button";
 import { disciplineLabel, paymentMethodLabel, toDateLabel } from "@/lib/helpers";
@@ -68,9 +69,9 @@ export default async function ReceiptPage({ params }: Props) {
 
         <div className="mt-8 flex gap-3 print:hidden">
           <PrintButton />
-          <a className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700" href="/">
+          <Link href="/" className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
             Volver
-          </a>
+          </Link>
         </div>
       </div>
     </main>
