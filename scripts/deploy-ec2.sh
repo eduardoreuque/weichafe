@@ -121,11 +121,11 @@ SERVICE
 '
 
 log "Healthcheck"
-if ! retry 8 curl -fsS -o /dev/null "http://$EC2_HOST:3000/login"; then
+if ! retry 8 curl -fsS -o /dev/null "http://$EC2_HOST/login"; then
   echo "Healthcheck fallo. Logs del servicio:"
   ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" 'sudo journalctl -u weichafe.service -n 80 --no-pager || true'
   exit 1
 fi
 
 log "Deploy OK"
-printf "URL: http://%s:3000/login\n" "$EC2_HOST"
+printf "URL: http://%s/login\n" "$EC2_HOST"
