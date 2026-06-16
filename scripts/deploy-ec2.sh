@@ -88,14 +88,40 @@ log "Desplegar y reiniciar servicio"
 retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   set -Eeuo pipefail
   mkdir -p /home/ec2-user/weichafe-standalone
+  
+  # Preservar base de datos y uploads antes de descomprimir
+  if [ -f /home/ec2-user/weichafe-standalone/dev.db ]; then
+    cp /home/ec2-user/weichafe-standalone/dev.db /tmp/dev.db.backup
+  fi
+  if [ -d /var/weichafe/uploads ]; then
+    cp -r /var/weichafe/uploads /tmp/uploads.backup
+  fi
+  
+  # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
+  
+  # Restaurar base de datos y uploads
+  if [ -f /tmp/dev.db.backup ]; then
+    mv /tmp/dev.db.backup /home/ec2-user/weichafe-standalone/dev.db
+  fi
+  if [ -d /tmp/uploads.backup ]; then
+    sudo mkdir -p /var/weichafe
+    sudo rm -rf /var/weichafe/uploads
+    sudo mv /tmp/uploads.backup /var/weichafe/uploads
+    sudo chown -R ec2-user:ec2-user /var/weichafe
+  fi
+  
   if ! command -v node >/dev/null 2>&1; then
     sudo dnf install -y nodejs
   fi
-  # Crear directorio persistente para uploads si no existe
-  sudo mkdir -p /var/weichafe/uploads
-  sudo chown -R ec2-user:ec2-user /var/weichafe
-
+  
+  # Aplicar migraciones de Prisma
+  cd /home/ec2-user/weichafe-standalone
+  npx prisma migrate deploy --schema=./prisma/schema.prisma || true
+  
+  # Ejecutar seed si existe
+  npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
+  
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
 [Unit]
