@@ -97,8 +97,8 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
   
-  # Eliminar base de datos anterior para recrearla
-  rm -f /home/ec2-user/weichafe-standalone/dev.db
+  # NO eliminar la base de datos - solo aplicar migraciones nuevas
+  # La BD se preserva entre deploys
   
   # Restaurar uploads
   if [ -d /tmp/uploads.backup ]; then
