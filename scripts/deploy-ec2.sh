@@ -89,10 +89,7 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   set -Eeuo pipefail
   mkdir -p /home/ec2-user/weichafe-standalone
   
-  # Preservar base de datos y uploads antes de descomprimir
-  if [ -f /home/ec2-user/weichafe-standalone/dev.db ]; then
-    cp /home/ec2-user/weichafe-standalone/dev.db /tmp/dev.db.backup
-  fi
+  # Preservar solo uploads antes de descomprimir
   if [ -d /var/weichafe/uploads ]; then
     cp -r /var/weichafe/uploads /tmp/uploads.backup
   fi
@@ -100,10 +97,10 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
   
-  # Restaurar base de datos y uploads
-  if [ -f /tmp/dev.db.backup ]; then
-    mv /tmp/dev.db.backup /home/ec2-user/weichafe-standalone/dev.db
-  fi
+  # Eliminar base de datos anterior para recrearla
+  rm -f /home/ec2-user/weichafe-standalone/dev.db
+  
+  # Restaurar uploads
   if [ -d /tmp/uploads.backup ]; then
     sudo mkdir -p /var/weichafe
     sudo rm -rf /var/weichafe/uploads
