@@ -81,6 +81,11 @@ else
   COPYFILE_DISABLE=1 tar -czf "$LOCAL_TAR" -C .next/standalone .
 fi
 
+# Excluir dev.db del paquete para no sobrescribir la BD en producción
+tar -tzf "$LOCAL_TAR" | grep -q "dev.db" && tar -tzf "$LOCAL_TAR" | grep "dev.db" | while read -r file; do
+  tar --delete -f "$LOCAL_TAR" "$file"
+done || true
+
 log "Subir paquete a EC2"
 retry 3 scp -i "$SSH_KEY" -o StrictHostKeyChecking=no "$LOCAL_TAR" "ec2-user@$EC2_HOST:$REMOTE_TAR"
 
