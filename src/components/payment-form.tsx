@@ -1,26 +1,22 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { disciplineLabel, paymentMethodLabel, statusLabel } from "@/lib/helpers";
 import { useRouter } from "next/navigation";
 
-type SubmitResult = { ok: true } | { ok: false; error: string };
+const DISCIPLINE_OPTIONS = [
+  { value: "MMA", label: "MMA" },
+  { value: "JIU_JITSU", label: "Jiu Jitsu" },
+  { value: "KICK", label: "Kickboxing" },
+  { value: "BOXEO", label: "Boxeo" },
+  { value: "MUAY_THAI", label: "Muay Thai" },
+  { value: "FUNCIONAL", label: "Funcional" },
+  { value: "OTRO", label: "Otra" },
+];
 
-const disciplines = ["MMA", "KICK", "BOXEO", "JIU_JITSU", "MUAY_THAI", "FUNCIONAL", "OTRO"] as const;
-const paymentMethods = ["EFECTIVO", "TRANSFERENCIA", "TARJETA_DEBITO", "TARJETA_CREDITO"] as const;
-const monthlyStatuses = ["PAGADO", "PENDIENTE", "SALTADO"] as const;
+type StudentOption = { id: string; fullName: string };
 
-interface StudentOption {
-  id: string;
-  fullName: string;
-}
-
-interface PaymentFormProps {
-  students: StudentOption[];
-}
-
-export function PaymentForm({ students }: PaymentFormProps) {
-  const [state, setState] = useState<SubmitResult | null>(null);
+export function PaymentForm({ students }: { students: StudentOption[] }) {
+  const [state, setState] = useState<{ ok: boolean; error?: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const router = useRouter();
@@ -30,26 +26,26 @@ export function PaymentForm({ students }: PaymentFormProps) {
     setIsPending(true);
     setState(null);
 
-    const formData = new FormData(event.currentTarget);
-    const payload = {
-      studentId: formData.get("studentId"),
-      discipline: formData.get("discipline"),
-      monthCovered: formData.get("monthCovered"),
-      status: formData.get("status"),
-      amount: formData.get("amount"),
-      paidAt: formData.get("paidAt"),
-      paymentMethod: formData.get("paymentMethod"),
-      notes: formData.get("notes"),
-    };
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     try {
       const response = await fetch("/api/monthly-payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          studentId: formData.get("studentId"),
+          discipline: formData.get("discipline"),
+          monthCovered: formData.get("monthCovered"),
+          amount: formData.get("amount"),
+          status: formData.get("status"),
+          paidAt: formData.get("paidAt") || undefined,
+          paymentMethod: formData.get("paymentMethod") || undefined,
+          notes: formData.get("notes") || undefined,
+        }),
       });
 
-      const result = (await response.json()) as SubmitResult;
+      const result = await response.json();
       setState(result);
 
       if (result.ok) {
@@ -57,7 +53,7 @@ export function PaymentForm({ students }: PaymentFormProps) {
         router.refresh();
       }
     } catch {
-      setState({ ok: false, error: "No se pudo registrar la mensualidad. Intenta nuevamente." });
+      setState({ ok: false, error: "No se pudo registrar. Intenta nuevamente." });
     } finally {
       setIsPending(false);
     }
@@ -86,9 +82,9 @@ export function PaymentForm({ students }: PaymentFormProps) {
         <select
           name="studentId"
           required
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         >
-          <option value="">Selecciona alumno *</option>
+          <option value="">Seleccionar alumno *</option>
           {students.map((s) => (
             <option key={s.id} value={s.id}>
               {s.fullName}
@@ -99,79 +95,77 @@ export function PaymentForm({ students }: PaymentFormProps) {
         <select
           name="discipline"
           required
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         >
-          {disciplines.map((d) => (
-            <option key={d} value={d}>
-              {disciplineLabel(d)}
+          <option value="">Disciplina *</option>
+          {DISCIPLINE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>
 
         <label className="text-xs text-slate-600">
-          Mensualidad que paga *
+          Mes que cubre *
           <input
             name="monthCovered"
             type="month"
             required
-            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </label>
-
-        <select
-          name="status"
-          required
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-        >
-          {monthlyStatuses.map((s) => (
-            <option key={s} value={s}>
-              {statusLabel(s)}
-            </option>
-          ))}
-        </select>
 
         <input
           name="amount"
           type="number"
-          min={0}
-          placeholder="Monto"
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          required
+          placeholder="Monto *"
+          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         />
 
+        <select
+          name="status"
+          required
+          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+        >
+          <option value="PAGADO">Pagado</option>
+          <option value="PENDIENTE">Pendiente</option>
+          <option value="SALTADO">Saltado</option>
+        </select>
+
         <label className="text-xs text-slate-600">
-          Fecha pago
+          Fecha de pago
           <input
             name="paidAt"
             type="date"
-            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </label>
 
         <select
           name="paymentMethod"
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         >
-          <option value="">Método de pago (si pagado)</option>
-          {paymentMethods.map((m) => (
-            <option key={m} value={m}>
-              {paymentMethodLabel(m)}
-            </option>
-          ))}
+          <option value="">Método de pago</option>
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TRANSFERENCIA">Transferencia</option>
+          <option value="TARJETA_DEBITO">Tarjeta Débito</option>
+          <option value="TARJETA_CREDITO">Tarjeta Crédito</option>
         </select>
 
         <input
           name="notes"
-          placeholder="Notas"
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          placeholder="Notas (opcional)"
+          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         />
       </div>
 
       <button
         type="submit"
         disabled={isPending}
-        className="mt-4 w-full rounded-xl bg-indigo-700 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+        className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
       >
-        {isPending ? "Guardando..." : "Guardar mensualidad"}
+        {isPending ? "Registrando..." : "Registrar mensualidad"}
       </button>
     </form>
   );

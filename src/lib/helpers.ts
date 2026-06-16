@@ -1,131 +1,114 @@
-import { Discipline, MonthlyPayment, MonthlyStatus, PaymentMethod } from "@prisma/client";
+export function toDateLabel(date: Date): string {
+  return date.toLocaleDateString("es-CL", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function toMonthLabel(date: Date): string {
+  return date.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+}
 
 export function calculateAge(birthDate: Date): number {
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
-
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age -= 1;
+    age--;
   }
-
   return age;
 }
 
-export function toMonthLabel(date: Date): string {
-  return new Intl.DateTimeFormat("es-CL", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
+import { Discipline, MonthlyStatus, PaymentMethod } from "@prisma/client";
+
+export function disciplineLabel(d: string): string {
+  const map: Record<string, string> = {
+    MMA: "MMA",
+    KICK: "Kickboxing",
+    BOXEO: "Boxeo",
+    JIU_JITSU: "Jiu Jitsu",
+    MUAY_THAI: "Muay Thai",
+    FUNCIONAL: "Funcional",
+    OTRO: "Otra",
+  };
+  return map[d] ?? d;
 }
 
-export function toDateLabel(date: Date): string {
-  return new Intl.DateTimeFormat("es-CL", {
-    dateStyle: "medium",
-  }).format(date);
+export function statusLabel(s: MonthlyStatus): string {
+  const map: Record<MonthlyStatus, string> = {
+    PAGADO: "Pagado",
+    PENDIENTE: "Pendiente",
+    SALTADO: "Saltado",
+  };
+  return map[s];
 }
 
-export function paymentMethodLabel(method: PaymentMethod): string {
-  switch (method) {
-    case "EFECTIVO":
-      return "Efectivo";
-    case "TRANSFERENCIA":
-      return "Transferencia";
-    case "TARJETA_DEBITO":
-      return "Tarjeta débito";
-    case "TARJETA_CREDITO":
-      return "Tarjeta crédito";
-    default:
-      return method;
-  }
+export function paymentMethodLabel(m: string): string {
+  const map: Record<string, string> = {
+    EFECTIVO: "Efectivo",
+    TRANSFERENCIA: "Transferencia",
+    TARJETA_DEBITO: "Tarjeta Débito",
+    TARJETA_CREDITO: "Tarjeta Crédito",
+  };
+  return map[m] ?? m;
 }
 
-export function disciplineLabel(discipline: Discipline): string {
-  switch (discipline) {
-    case "KICK":
-      return "Kick";
-    case "JIU_JITSU":
-      return "Jiu Jitsu";
-    case "MUAY_THAI":
-      return "Muay Thai";
-    case "BOXEO":
-      return "Boxeo";
-    case "MMA":
-      return "MMA";
-    case "FUNCIONAL":
-      return "Funcional";
-    case "OTRO":
-      return "Otro";
-    default:
-      return discipline;
-  }
-}
-
-export function statusLabel(status: MonthlyStatus): string {
+export function statusClass(status: MonthlyStatus): string {
   switch (status) {
     case "PAGADO":
-      return "Pagado";
+      return "bg-emerald-100 text-emerald-800";
     case "PENDIENTE":
-      return "Pendiente";
+      return "bg-amber-100 text-amber-800";
     case "SALTADO":
-      return "Saltado";
+      return "bg-rose-100 text-rose-700";
     default:
-      return status;
+      return "bg-slate-100 text-slate-700";
   }
 }
 
-function monthKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function parseMonthKey(key: string): Date {
-  const [year, month] = key.split("-").map(Number);
-  return new Date(year, month - 1, 1);
+export interface MonthGap {
+  year: number;
+  month: number;
 }
 
 export function detectSkippedMonthsByDiscipline(
-  payments: Pick<MonthlyPayment, "discipline" | "monthCovered" | "status">[],
+  payments: { discipline: Discipline; monthCovered: Date; status: MonthlyStatus }[]
 ): Record<string, string[]> {
-  const now = new Date();
-  const limit = new Date(now.getFullYear(), now.getMonth(), 1);
-  const byDiscipline = new Map<Discipline, Pick<MonthlyPayment, "discipline" | "monthCovered" | "status">[]>();
+  const groups: Record<string, Date[]> = {};
 
-  for (const payment of payments) {
-    const list = byDiscipline.get(payment.discipline) ?? [];
-    list.push(payment);
-    byDiscipline.set(payment.discipline, list);
+  for (const p of payments) {
+    if (p.status === "SALTADO") continue;
+    const key = p.discipline;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(p.monthCovered);
   }
 
   const result: Record<string, string[]> = {};
-
-  for (const [discipline, list] of byDiscipline.entries()) {
-    const covered = new Set<string>(
-      list
-        .filter((item) => item.status === "PAGADO" || item.status === "SALTADO")
-        .map((item) => monthKey(item.monthCovered)),
-    );
-
-    const sortedMonths = list.map((item) => item.monthCovered).sort((a, b) => a.getTime() - b.getTime());
-    const start = sortedMonths[0];
-
-    if (!start) {
-      result[discipline] = [];
-      continue;
-    }
-
+  for (const [discipline, dates] of Object.entries(groups)) {
+    dates.sort((a, b) => a.getTime() - b.getTime());
     const gaps: string[] = [];
-    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const minDate = new Date(dates[0]);
+    const maxDate = new Date();
+    const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
 
-    while (cursor <= limit) {
-      const key = monthKey(cursor);
-      if (!covered.has(key)) {
-        gaps.push(toMonthLabel(parseMonthKey(key)));
+    while (cursor <= maxDate) {
+      const found = dates.some(
+        (d) => d.getFullYear() === cursor.getFullYear() && d.getMonth() === cursor.getMonth()
+      );
+      if (!found) {
+        gaps.push(
+          cursor.toLocaleDateString("es-CL", { month: "short", year: "numeric" })
+        );
       }
       cursor.setMonth(cursor.getMonth() + 1);
     }
-
     result[discipline] = gaps;
   }
-
   return result;
+}
+
+export function parseDisciplines(d: string | undefined | null): string[] {
+  if (!d || d.trim() === "") return [];
+  return d.split(",").map((s) => s.trim()).filter(Boolean);
 }

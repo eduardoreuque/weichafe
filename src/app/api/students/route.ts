@@ -42,11 +42,16 @@ export async function POST(request: Request) {
       data: {
         fullName,
         birthDate,
+        rut: normalizeString(body.rut),
         email: normalizeString(body.email),
         whatsapp: normalizeString(body.whatsapp),
         address: normalizeString(body.address),
         district: normalizeString(body.district),
+        emergencyContact: normalizeString(body.emergencyContact),
         emergencyPhone: normalizeString(body.emergencyPhone),
+        notes: normalizeString(body.notes),
+        photoUrl: normalizeString(body.photoUrl),
+        isActive: body.isActive !== false,
       },
     });
 

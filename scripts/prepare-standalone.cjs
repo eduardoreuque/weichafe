@@ -28,4 +28,10 @@ copyDir(staticDir, path.join(standaloneDir, ".next", "static"));
 // Incluir las migraciones y schema de Prisma en el standalone para poder aplicar migraciones en el servidor
 copyDir(path.join(root, "prisma"), path.join(standaloneDir, "prisma"));
 
-console.log("Standalone listo para Electron.");
+// Crear directorio uploads vacío en el standalone (en prod se usa UPLOAD_DIR externo)
+ensureDir(path.join(standaloneDir, "public", "uploads"));
+
+// Agregar .gitkeep para que el directorio se mantenga
+fs.writeFileSync(path.join(standaloneDir, "public", "uploads", ".gitkeep"), "");
+
+console.log("Standalone listo para Electron/EC2.");

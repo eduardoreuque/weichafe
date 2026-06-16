@@ -58,11 +58,16 @@ export async function createStudentAction(
       data: {
         fullName,
         birthDate: new Date(birthDateRaw),
+        rut: normalizeString(formData.get("rut")),
         email: normalizeString(formData.get("email")),
         whatsapp: normalizeString(formData.get("whatsapp")),
         address: normalizeString(formData.get("address")),
         district: normalizeString(formData.get("district")),
+        emergencyContact: normalizeString(formData.get("emergencyContact")),
         emergencyPhone: normalizeString(formData.get("emergencyPhone")),
+        notes: normalizeString(formData.get("notes")),
+        photoUrl: normalizeString(formData.get("photoUrl")),
+        isActive: formData.get("isActive") !== "false",
       },
     });
     revalidatePath("/");
@@ -89,6 +94,7 @@ export async function createMonthlyPaymentAction(
   const amount = normalizeInt(formData.get("amount"));
   const paidAtRaw = normalizeString(formData.get("paidAt"));
   const paymentMethodRaw = normalizeString(formData.get("paymentMethod")) as PaymentMethod | null;
+  const disciplinesMulti = normalizeString(formData.get("disciplines"));
 
   const yearMonth = `${monthCoveredRaw}-01`;
   const paidAt = paidAtRaw ? new Date(paidAtRaw) : status === "PAGADO" ? new Date() : null;
@@ -96,6 +102,7 @@ export async function createMonthlyPaymentAction(
   const data: Prisma.MonthlyPaymentCreateInput = {
     amount,
     discipline,
+    disciplines: disciplinesMulti,
     status,
     monthCovered: new Date(yearMonth),
     paidAt,
@@ -112,7 +119,7 @@ export async function createMonthlyPaymentAction(
         data: {
           receiptNumber: createReceiptNumber(),
           amount: created.amount,
-          description: `Mensualidad ${created.discipline} - ${new Date(yearMonth).toLocaleDateString("es-CL", { month: "long", year: "numeric" })}`,
+          description: `Mensualidad ${created.discipline}${created.disciplines ? ` (${created.disciplines})` : ""} - ${new Date(yearMonth).toLocaleDateString("es-CL", { month: "long", year: "numeric" })}`,
           paymentMethod: paymentMethodRaw,
           studentId: studentId,
           monthlyPaymentId: created.id,
@@ -133,11 +140,11 @@ export async function createDailyClassSaleAction(
   formData: FormData
 ): Promise<ActionResult> {
   const studentIdRaw = normalizeString(formData.get("studentId"));
-  const discipline = normalizeString(formData.get("discipline")) as Discipline | null;
+  const disciplineRaw = normalizeString(formData.get("disciplines")) || normalizeString(formData.get("discipline"));
   const classDateRaw = normalizeString(formData.get("classDate"));
   const paymentMethodRaw = normalizeString(formData.get("paymentMethod")) as PaymentMethod | null;
 
-  if (!discipline || !disciplines.has(discipline)) return { ok: false, error: "Disciplina inválida" };
+  if (!disciplineRaw) return { ok: false, error: "Selecciona al menos una disciplina" };
   if (!classDateRaw) return { ok: false, error: "La fecha de clase es requerida" };
   if (!paymentMethodRaw || !paymentMethods.has(paymentMethodRaw)) return { ok: false, error: "Método de pago requerido" };
 
@@ -152,7 +159,7 @@ export async function createDailyClassSaleAction(
   try {
     const created = await prisma.dailyClassSale.create({
       data: {
-        discipline,
+        discipline: disciplineRaw,
         classDate: new Date(classDateRaw),
         amount,
         paymentMethod: paymentMethodRaw,

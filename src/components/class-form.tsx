@@ -1,39 +1,48 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { disciplineLabel, paymentMethodLabel } from "@/lib/helpers";
 import { useRouter } from "next/navigation";
 
-type SubmitResult = { ok: true } | { ok: false; error: string };
+const DISCIPLINE_OPTIONS = [
+  { value: "MMA", label: "MMA" },
+  { value: "JIU_JITSU", label: "Jiu Jitsu" },
+  { value: "KICK", label: "Kickboxing" },
+  { value: "BOXEO", label: "Boxeo" },
+  { value: "MUAY_THAI", label: "Muay Thai" },
+  { value: "FUNCIONAL", label: "Funcional" },
+  { value: "OTRO", label: "Otra" },
+];
 
-const disciplines = ["MMA", "KICK", "BOXEO", "JIU_JITSU", "MUAY_THAI", "FUNCIONAL", "OTRO"] as const;
-const paymentMethods = ["EFECTIVO", "TRANSFERENCIA", "TARJETA_DEBITO", "TARJETA_CREDITO"] as const;
+type StudentOption = { id: string; fullName: string };
 
-interface StudentOption {
-  id: string;
-  fullName: string;
-}
-
-interface ClassFormProps {
-  students: StudentOption[];
-}
-
-export function ClassForm({ students }: ClassFormProps) {
-  const [state, setState] = useState<SubmitResult | null>(null);
+export function ClassForm({ students }: { students: StudentOption[] }) {
+  const [state, setState] = useState<{ ok: boolean; error?: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
   const router = useRouter();
+
+  const toggleDiscipline = (value: string) => {
+    setSelectedDisciplines((prev) =>
+      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]
+    );
+  };
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (selectedDisciplines.length === 0) {
+      setState({ ok: false, error: "Selecciona al menos una disciplina" });
+      return;
+    }
     setIsPending(true);
     setState(null);
 
-    const formData = new FormData(event.currentTarget);
-    const payload = {
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const payload: Record<string, unknown> = {
       studentId: formData.get("studentId"),
       attendeeName: formData.get("attendeeName"),
-      discipline: formData.get("discipline"),
+      disciplines: selectedDisciplines.join(","),
       classDate: formData.get("classDate"),
       amount: formData.get("amount"),
       paymentMethod: formData.get("paymentMethod"),
@@ -47,15 +56,16 @@ export function ClassForm({ students }: ClassFormProps) {
         body: JSON.stringify(payload),
       });
 
-      const result = (await response.json()) as SubmitResult;
+      const result = (await response.json()) as { ok: boolean; error?: string };
       setState(result);
 
       if (result.ok) {
         setFormKey((k) => k + 1);
+        setSelectedDisciplines([]);
         router.refresh();
       }
     } catch {
-      setState({ ok: false, error: "No se pudo registrar la clase diaria. Intenta nuevamente." });
+      setState({ ok: false, error: "No se pudo registrar. Intenta nuevamente." });
     } finally {
       setIsPending(false);
     }
@@ -67,7 +77,7 @@ export function ClassForm({ students }: ClassFormProps) {
       onSubmit={handleSubmit}
       className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm"
     >
-      <h2 className="text-lg font-bold">Venta por clase diaria</h2>
+      <h2 className="text-lg font-bold">Venta clase diaria</h2>
 
       {state?.ok === true && (
         <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
@@ -85,34 +95,38 @@ export function ClassForm({ students }: ClassFormProps) {
           name="studentId"
           className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         >
-          <option value="">Sin alumno asociado</option>
+          <option value="">Seleccionar alumno (o escribir nombre)</option>
           {students.map((s) => (
             <option key={s.id} value={s.id}>
               {s.fullName}
             </option>
           ))}
         </select>
-
         <input
           name="attendeeName"
-          placeholder="Nombre asistente (si no es alumno)"
+          placeholder="O nombre del asistente (si no está en la lista)"
           className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         />
 
-        <select
-          name="discipline"
-          required
-          className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-        >
-          {disciplines.map((d) => (
-            <option key={d} value={d}>
-              {disciplineLabel(d)}
-            </option>
-          ))}
-        </select>
+        <fieldset className="border border-slate-200 rounded-xl p-3">
+          <legend className="text-xs font-semibold text-slate-500 mb-2">Disciplinas *</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {DISCIPLINE_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedDisciplines.includes(opt.value)}
+                  onChange={() => toggleDiscipline(opt.value)}
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <label className="text-xs text-slate-600">
-          Fecha clase *
+          Fecha de clase *
           <input
             name="classDate"
             type="date"
@@ -120,31 +134,27 @@ export function ClassForm({ students }: ClassFormProps) {
             className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </label>
-
         <input
           name="amount"
           type="number"
-          min={0}
-          placeholder="Monto clase"
+          required
+          placeholder="Monto *"
           className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         />
-
         <select
           name="paymentMethod"
           required
           className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         >
           <option value="">Método de pago *</option>
-          {paymentMethods.map((m) => (
-            <option key={m} value={m}>
-              {paymentMethodLabel(m)}
-            </option>
-          ))}
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TRANSFERENCIA">Transferencia</option>
+          <option value="TARJETA_DEBITO">Tarjeta Débito</option>
+          <option value="TARJETA_CREDITO">Tarjeta Crédito</option>
         </select>
-
         <input
           name="notes"
-          placeholder="Notas"
+          placeholder="Notas (opcional)"
           className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         />
       </div>
@@ -152,9 +162,9 @@ export function ClassForm({ students }: ClassFormProps) {
       <button
         type="submit"
         disabled={isPending}
-        className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+        className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
       >
-        {isPending ? "Guardando..." : "Guardar clase diaria"}
+        {isPending ? "Registrando..." : "Registrar clase"}
       </button>
     </form>
   );

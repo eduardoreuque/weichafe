@@ -92,6 +92,10 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   if ! command -v node >/dev/null 2>&1; then
     sudo dnf install -y nodejs
   fi
+  # Crear directorio persistente para uploads si no existe
+  sudo mkdir -p /var/weichafe/uploads
+  sudo chown -R ec2-user:ec2-user /var/weichafe
+
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
 [Unit]
@@ -105,6 +109,7 @@ WorkingDirectory=/home/ec2-user/weichafe-standalone
 Environment=HOSTNAME=0.0.0.0
 Environment=PORT=3000
 Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/dev.db
+Environment=UPLOAD_DIR=/var/weichafe/uploads
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=5

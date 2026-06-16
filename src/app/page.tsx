@@ -7,8 +7,10 @@ import {
   disciplineLabel,
   paymentMethodLabel,
   statusLabel,
+  statusClass,
   toDateLabel,
   toMonthLabel,
+  parseDisciplines,
 } from "@/lib/helpers";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -74,19 +76,6 @@ const contactInfo = {
   facebookHref: "https://www.facebook.com/eweichafe/",
   instagramHref: "https://www.instagram.com/equipoweichafe/",
 };
-
-function statusClass(status: MonthlyStatus): string {
-  switch (status) {
-    case "PAGADO":
-      return "bg-emerald-100 text-emerald-800";
-    case "PENDIENTE":
-      return "bg-amber-100 text-amber-800";
-    case "SALTADO":
-      return "bg-rose-100 text-rose-700";
-    default:
-      return "bg-slate-100 text-slate-700";
-  }
-}
 
 export default async function Home() {
   const session = await getSession();
@@ -253,22 +242,44 @@ export default async function Home() {
               const skippedByDiscipline = detectSkippedMonthsByDiscipline(student.monthlyPayments);
 
               return (
-                <article key={student.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <div>
-                      <h3 className="text-lg font-bold">{student.fullName}</h3>
-                      <p className="text-sm text-slate-600">
-                        Nacimiento: {toDateLabel(student.birthDate)} ({calculateAge(student.birthDate)} anos)
-                      </p>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-600">
-                        <p>Correo: {student.email ?? "-"}</p>
-                        <p>WhatsApp: {student.whatsapp ?? "-"}</p>
-                        <p>Direccion: {student.address ?? "-"}</p>
-                        <p>Comuna: {student.district ?? "-"}</p>
-                        <p>Emergencia: {student.emergencyPhone ?? "-"}</p>
+                <article key={student.id} className={`rounded-2xl border ${student.isActive ? "border-slate-200" : "border-amber-200 bg-amber-50/50"} bg-white p-4`}>
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-start gap-4">
+                      {student.photoUrl ? (
+                        <Image
+                          src={student.photoUrl}
+                          alt={student.fullName}
+                          width={64}
+                          height={64}
+                          className="rounded-full border-2 border-slate-200 object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-xl font-bold text-slate-500">
+                          {student.fullName.charAt(0)}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-lg font-bold flex items-center gap-2">
+                          {student.fullName}
+                          {!student.isActive && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                              Inactivo
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-slate-600">
+                          {student.rut && <span className="mr-3">RUT: {student.rut}</span>}
+                          Nacimiento: {toDateLabel(student.birthDate)} ({calculateAge(student.birthDate)} anos)
+                        </p>
                       </div>
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      <p>Correo: {student.email ?? "-"}</p>
+                      <p>WhatsApp: {student.whatsapp ?? "-"}</p>
+                      <p>Direccion: {student.address ?? "-"}</p>
+                      <p>Comuna: {student.district ?? "-"}</p>
+                      <p>Emergencia: {student.emergencyContact ? `${student.emergencyContact} - ` : ""}{student.emergencyPhone ?? "-"}</p>
+                      {student.notes && <p className="mt-1 italic">Obs: {student.notes}</p>}
                       {session.role === "ADMIN" ? (
                         <div className="mt-2">
                           <StudentDeleteButton studentId={student.id} studentName={student.fullName} />

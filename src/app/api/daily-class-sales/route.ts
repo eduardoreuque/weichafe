@@ -57,13 +57,13 @@ export async function POST(request: Request) {
   }
 
   const studentIdRaw = normalizeString(body.studentId);
-  const discipline = normalizeString(body.discipline) as Discipline | null;
+  const disciplineRaw = normalizeString(body.disciplines) || normalizeString(body.discipline);
   const classDateRaw = normalizeString(body.classDate);
   const paymentMethodRaw = normalizeString(body.paymentMethod) as PaymentMethod | null;
   const attendeeName = normalizeString(body.attendeeName);
 
-  if (!discipline || !disciplines.has(discipline)) {
-    return NextResponse.json({ ok: false, error: "Disciplina invalida" }, { status: 400 });
+  if (!disciplineRaw) {
+    return NextResponse.json({ ok: false, error: "Selecciona al menos una disciplina" }, { status: 400 });
   }
   if (!classDateRaw) {
     return NextResponse.json({ ok: false, error: "La fecha de clase es requerida" }, { status: 400 });
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
   try {
     const created = await prisma.dailyClassSale.create({
       data: {
-        discipline,
+        discipline: disciplineRaw,
         classDate,
         amount,
         paymentMethod: paymentMethodRaw,
