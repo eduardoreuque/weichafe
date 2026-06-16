@@ -80,3 +80,14 @@ resource "aws_instance" "weichafe" {
     Project = "weichafe"
   }
 }
+
+# Elastic IP estática (gratis mientras esté asociada a la instancia)
+resource "aws_eip" "weichafe" {
+  instance = aws_instance.weichafe.id
+  domain   = "vpc"
+
+  tags = {
+    Name    = "${var.instance_name}-eip"
+    Project = "weichafe"
+  }
+}

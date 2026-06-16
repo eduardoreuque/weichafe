@@ -4,8 +4,8 @@ output "instance_id" {
 }
 
 output "public_ip" {
-  description = "IP publica de la instancia"
-  value       = aws_instance.weichafe.public_ip
+  description = "IP publica estatica (Elastic IP)"
+  value       = aws_eip.weichafe.public_ip
 }
 
 output "security_group_id" {
@@ -15,5 +15,5 @@ output "security_group_id" {
 
 output "ssh_connection" {
   description = "Comando base para conectar por SSH"
-  value       = "ssh -i ~/.ssh/${var.key_name} ec2-user@${aws_instance.weichafe.public_ip}"
+  value       = "ssh -i ~/.ssh/${var.key_name} ec2-user@${aws_eip.weichafe.public_ip}"
 }
