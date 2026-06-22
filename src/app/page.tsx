@@ -198,6 +198,34 @@ export default async function Home() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900">Resumen y Métricas</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-medium text-slate-600">Total Alumnos</p>
+              <p className="mt-1 text-3xl font-bold text-slate-900">{students.length}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-sm font-medium text-emerald-700">Alumnos Activos</p>
+              <p className="mt-1 text-3xl font-bold text-emerald-900">
+                {students.filter((s) => s.isActive).length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-700">Alumnos Inactivos/Retirados</p>
+              <p className="mt-1 text-3xl font-bold text-amber-900">
+                {students.filter((s) => !s.isActive).length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <p className="text-sm font-medium text-rose-700">Con Alertas de Pago</p>
+              <p className="mt-1 text-3xl font-bold text-rose-900">
+                {students.filter((s) => Object.keys(detectSkippedMonthsByDiscipline(s.monthlyPayments)).length > 0).length}
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-4 xl:grid-cols-2">
           <article className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
             <h2 className="text-xl font-bold">Valores mensuales</h2>
@@ -336,6 +364,61 @@ export default async function Home() {
                 </article>
               );
             })}
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm">
+            <h3 className="text-lg font-bold text-amber-900">Alumnos Inactivos/Retirados ({students.filter((s) => !s.isActive).length})</h3>
+            <div className="mt-3 max-h-80 overflow-y-auto">
+              {students.filter((s) => !s.isActive).length === 0 ? (
+                <p className="text-sm text-slate-600">No hay alumnos inactivos.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {students.filter((s) => !s.isActive).slice(0, 15).map((student) => (
+                    <li key={student.id} className="flex items-center justify-between rounded-lg border border-amber-200 bg-white px-3 py-2">
+                      <div>
+                        <p className="font-medium text-slate-900">{student.fullName}</p>
+                        <p className="text-xs text-slate-600">RUT: {student.rut ?? "-"}</p>
+                      </div>
+                      <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-semibold text-amber-800">Inactivo</span>
+                    </li>
+                  ))}
+                  {students.filter((s) => !s.isActive).length > 15 && (
+                    <p className="mt-2 text-xs text-slate-600">... y {students.filter((s) => !s.isActive).length - 15} más</p>
+                  )}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
+            <h3 className="text-lg font-bold text-rose-900">Alumnos con Deuda/Meses Saltados ({students.filter((s) => Object.keys(detectSkippedMonthsByDiscipline(s.monthlyPayments)).length > 0).length})</h3>
+            <div className="mt-3 max-h-80 overflow-y-auto">
+              {students.filter((s) => Object.keys(detectSkippedMonthsByDiscipline(s.monthlyPayments)).length > 0).length === 0 ? (
+                <p className="text-sm text-slate-600">No hay alertas de pago.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {students.filter((s) => Object.keys(detectSkippedMonthsByDiscipline(s.monthlyPayments)).length > 0).slice(0, 15).map((student) => {
+                    const skipped = detectSkippedMonthsByDiscipline(student.monthlyPayments);
+                    const disciplines = Object.keys(skipped).map((d) => disciplineLabel(d as Discipline)).join(", ");
+                    return (
+                      <li key={student.id} className="flex items-center justify-between rounded-lg border border-rose-200 bg-white px-3 py-2">
+                        <div>
+                          <p className="font-medium text-slate-900">{student.fullName}</p>
+                          <p className="text-xs text-slate-600">RUT: {student.rut ?? "-"}</p>
+                          <p className="text-xs text-rose-700">Falta: {disciplines}</p>
+                        </div>
+                        <span className="rounded-full bg-rose-200 px-2 py-1 text-xs font-semibold text-rose-800">Deuda</span>
+                      </li>
+                    );
+                  })}
+                  {students.filter((s) => Object.keys(detectSkippedMonthsByDiscipline(s.monthlyPayments)).length > 0).length > 15 && (
+                    <p className="mt-2 text-xs text-slate-600">... y {students.filter((s) => Object.keys(detectSkippedMonthsByDiscipline(s.monthlyPayments)).length > 0).length - 15} más</p>
+                  )}
+                </ul>
+              )}
+            </div>
           </div>
         </section>
 
