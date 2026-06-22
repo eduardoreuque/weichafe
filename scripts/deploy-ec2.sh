@@ -102,8 +102,10 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
   
-  # NO eliminar la base de datos - solo aplicar migraciones nuevas
-  # La BD se preserva entre deploys
+  # Preservar base de datos entre deploys
+  if [ -f prisma/dev.db ]; then
+    cp prisma/dev.db /tmp/dev.db.backup
+  fi
   
   # Restaurar uploads
   if [ -d /tmp/uploads.backup ]; then
@@ -124,12 +126,10 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Ejecutar seed si existe
   npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
   
-  # Eliminar prisma/dev.db si existe (causa conflicto con dev.db)
-  rm -f prisma/dev.db
-  
-  # Mover BD de prisma/dev.db a dev.db (ubicación correcta) - por si acaso
-  if [ -f prisma/dev.db ]; then
-    mv prisma/dev.db dev.db
+  # Restaurar base de datos si se hizo backup
+  if [ -f /tmp/dev.db.backup ]; then
+    cp /tmp/dev.db.backup prisma/dev.db
+    rm -f /tmp/dev.db.backup
   fi
   
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
