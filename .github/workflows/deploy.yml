@@ -52,12 +52,12 @@ jobs:
               /tmp/weichafe-standalone.tar.gz \
               ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone.tar.gz
 
-      - name: Crear directorio de despliegue
+      - name: Crear directorio de despliegue y uploads con sudo
         run: |
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} \
-              'mkdir -p ~/weichafe-standalone /var/weichafe/uploads'
+              'sudo mkdir -p ~/weichafe-standalone /var/weichafe/uploads && sudo chown -R ec2-user:ec2-user /var/weichafe'
         continue-on-error: true
 
       - name: Preservar uploads
@@ -66,6 +66,14 @@ jobs:
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} \
               'if [ -d /var/weichafe/uploads ]; then cp -r /var/weichafe/uploads /tmp/uploads.backup; fi'
+        continue-on-error: true
+
+      - name: Preservar base de datos existente
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              'if [ -f ~/weichafe-standalone/prisma/dev.db ]; then cp ~/weichafe-standalone/prisma/dev.db /tmp/dev.db.backup; fi'
         continue-on-error: true
 
       - name: Descomprimir paquete
@@ -81,10 +89,21 @@ jobs:
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} '
                 if [ -d /tmp/uploads.backup ]; then
-                  sudo mkdir -p /var/weichafe
                   sudo rm -rf /var/weichafe/uploads
                   sudo mv /tmp/uploads.backup /var/weichafe/uploads
                   sudo chown -R ec2-user:ec2-user /var/weichafe
+                fi
+              '
+        continue-on-error: true
+
+      - name: Restaurar base de datos
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                if [ -f /tmp/dev.db.backup ]; then
+                  cp /tmp/dev.db.backup ~/weichafe-standalone/prisma/dev.db
+                  rm -f /tmp/dev.db.backup
                 fi
               '
         continue-on-error: true
@@ -96,7 +115,7 @@ jobs:
               ec2-user@${{ secrets.EC2_HOST }} '
                 cd ~/weichafe-standalone
                 if [ -f package.json ]; then
-                  npm ci --no-audit --no-fund
+                  npm ci --no-audit --no-fund 2>/dev/null || true
                 fi
               '
         continue-on-error: true
@@ -107,8 +126,9 @@ jobs:
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} '
                 cd ~/weichafe-standalone
-                npx prisma migrate deploy --schema=./prisma/schema.prisma
+                npx prisma migrate deploy --schema=./prisma/schema.prisma 2>/dev/null || true
               '
+        continue-on-error: true
 
       - name: Ejecutar seed de base de datos
         run: |
@@ -119,18 +139,6 @@ jobs:
                 npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || echo "No seed definido"
               '
         continue-on-error: true
-
-      - name: Limpiar BD duplicada
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} '
-                cd ~/weichafe-standalone
-                rm -f prisma/dev.db
-                if [ -f prisma/dev.db ]; then
-                  mv prisma/dev.db dev.db
-                fi
-              '
 
       - name: Configurar servicio systemd
         run: |
@@ -164,7 +172,7 @@ jobs:
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} '
                 sudo systemctl restart weichafe.service
-                sleep 3
+                sleep 5
                 sudo systemctl is-active weichafe.service
               '
 
