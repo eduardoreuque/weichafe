@@ -9,7 +9,7 @@ jobs:
   deploy:
     name: Build y deploy en EC2
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout código
@@ -52,29 +52,119 @@ jobs:
               /tmp/weichafe-standalone.tar.gz \
               ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone.tar.gz
 
-      - name: Desplegar y aplicar migraciones
+      - name: Crear directorio de despliegue
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              'mkdir -p ~/weichafe-standalone /var/weichafe/uploads'
+        continue-on-error: true
+
+      - name: Preservar uploads
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              'if [ -d /var/weichafe/uploads ]; then cp -r /var/weichafe/uploads /tmp/uploads.backup; fi'
+        continue-on-error: true
+
+      - name: Descomprimir paquete
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              'tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone'
+
+      - name: Restaurar uploads
         run: |
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} '
-            set -e
-            mkdir -p ~/weichafe-standalone
-            tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone
-            # instalar dependencias si existe package.json (para poder ejecutar npx prisma)
-            if [ -f ~/weichafe-standalone/package.json ]; then
-              cd ~/weichafe-standalone
-              npm ci --no-audit --no-fund || true
-            fi
-            # aplicar migraciones si vienen en el paquete
-            if [ -d ~/weichafe-standalone/prisma ]; then
-              cd ~/weichafe-standalone
-              npx prisma migrate deploy --schema=./prisma/schema.prisma || true
-            fi
-            sudo systemctl daemon-reload || true
-            sudo systemctl restart weichafe.service
-            sleep 3
-            sudo systemctl is-active weichafe.service
-          '
+                if [ -d /tmp/uploads.backup ]; then
+                  sudo mkdir -p /var/weichafe
+                  sudo rm -rf /var/weichafe/uploads
+                  sudo mv /tmp/uploads.backup /var/weichafe/uploads
+                  sudo chown -R ec2-user:ec2-user /var/weichafe
+                fi
+              '
+        continue-on-error: true
+
+      - name: Instalar dependencias en servidor
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                cd ~/weichafe-standalone
+                if [ -f package.json ]; then
+                  npm ci --no-audit --no-fund
+                fi
+              '
+        continue-on-error: true
+
+      - name: Aplicar migraciones de Prisma
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                cd ~/weichafe-standalone
+                npx prisma migrate deploy --schema=./prisma/schema.prisma
+              '
+
+      - name: Ejecutar seed de base de datos
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                cd ~/weichafe-standalone
+                npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || echo "No seed definido"
+              '
+        continue-on-error: true
+
+      - name: Limpiar BD duplicada
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                cd ~/weichafe-standalone
+                rm -f prisma/dev.db
+                if [ -f prisma/dev.db ]; then
+                  mv prisma/dev.db dev.db
+                fi
+              '
+
+      - name: Configurar servicio systemd
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              "echo '[Unit]
+Description=Weichafe Next Standalone
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/weichafe-standalone
+Environment=HOSTNAME=0.0.0.0
+Environment=PORT=3000
+Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db
+Environment=UPLOAD_DIR=/var/weichafe/uploads
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target' | sudo tee /etc/systemd/system/weichafe.service >/dev/null && sudo systemctl daemon-reload && sudo systemctl enable weichafe.service"
+
+      - name: Reiniciar servicio
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                sudo systemctl restart weichafe.service
+                sleep 3
+                sudo systemctl is-active weichafe.service
+              '
 
       - name: Verificar que la app responde
         run: |
