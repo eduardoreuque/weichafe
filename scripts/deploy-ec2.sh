@@ -144,7 +144,7 @@ User=ec2-user
 WorkingDirectory=/home/ec2-user/weichafe-standalone
 Environment=HOSTNAME=0.0.0.0
 Environment=PORT=3000
-Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/dev.db
+Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db
 Environment=UPLOAD_DIR=/var/weichafe/uploads
 ExecStart=/usr/bin/node server.js
 Restart=always
