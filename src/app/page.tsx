@@ -127,6 +127,12 @@ export default async function Home() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Link
+                href="/alumnos"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                Gestión de Alumnos
+              </Link>
               <div className="text-right text-sm">
                 <p className="font-semibold text-slate-700">{session.name}</p>
                 <p className={`text-xs font-bold ${session.role === "ADMIN" ? "text-violet-600" : "text-slate-500"}`}>
