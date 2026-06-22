@@ -124,7 +124,10 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Ejecutar seed si existe
   npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
   
-  # Mover BD de prisma/dev.db a dev.db (ubicación correcta)
+  # Eliminar prisma/dev.db si existe (causa conflicto con dev.db)
+  rm -f prisma/dev.db
+  
+  # Mover BD de prisma/dev.db a dev.db (ubicación correcta) - por si acaso
   if [ -f prisma/dev.db ]; then
     mv prisma/dev.db dev.db
   fi
