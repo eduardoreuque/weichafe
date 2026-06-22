@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout código
+      - name: Checkout codigo
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -32,7 +32,7 @@ jobs:
         env:
           DATABASE_URL: file:./prisma/dev.db
 
-      - name: Copiar archivos estáticos al standalone
+      - name: Copiar archivos estaticos al standalone
         run: node scripts/prepare-standalone.cjs
 
       - name: Empaquetar standalone
@@ -137,24 +137,26 @@ jobs:
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} \
-              "echo '[Unit]
-Description=Weichafe Next Standalone
-After=network.target
-
-[Service]
-Type=simple
-User=ec2-user
-WorkingDirectory=/home/ec2-user/weichafe-standalone
-Environment=HOSTNAME=0.0.0.0
-Environment=PORT=3000
-Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db
-Environment=UPLOAD_DIR=/var/weichafe/uploads
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target' | sudo tee /etc/systemd/system/weichafe.service >/dev/null && sudo systemctl daemon-reload && sudo systemctl enable weichafe.service"
+              'printf "%s\n" \
+                "[Unit]" \
+                "Description=Weichafe Next Standalone" \
+                "After=network.target" \
+                "" \
+                "[Service]" \
+                "Type=simple" \
+                "User=ec2-user" \
+                "WorkingDirectory=/home/ec2-user/weichafe-standalone" \
+                "Environment=HOSTNAME=0.0.0.0" \
+                "Environment=PORT=3000" \
+                "Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db" \
+                "Environment=UPLOAD_DIR=/var/weichafe/uploads" \
+                "ExecStart=/usr/bin/node server.js" \
+                "Restart=always" \
+                "RestartSec=5" \
+                "" \
+                "[Install]" \
+                "WantedBy=multi-user.target" \
+                | sudo tee /etc/systemd/system/weichafe.service >/dev/null && sudo systemctl daemon-reload && sudo systemctl enable weichafe.service'
 
       - name: Reiniciar servicio
         run: |
