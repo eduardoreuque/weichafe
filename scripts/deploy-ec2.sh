@@ -124,6 +124,11 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Ejecutar seed si existe
   npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
   
+  # Mover BD de prisma/dev.db a dev.db (ubicación correcta)
+  if [ -f prisma/dev.db ]; then
+    mv prisma/dev.db dev.db
+  fi
+  
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
 [Unit]
