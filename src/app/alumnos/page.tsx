@@ -20,9 +20,9 @@ export default async function StudentsPage({
     where: query
       ? {
           OR: [
-            { fullName: { contains: query, mode: "insensitive" } },
-            { rut: { contains: query, mode: "insensitive" } },
-            { email: { contains: query, mode: "insensitive" } },
+            { fullName: { contains: query } },
+            { rut: { contains: query } },
+            { email: { contains: query } },
           ],
         }
       : undefined,
