@@ -16,17 +16,23 @@ export default async function StudentEditPage({
 
   const student = await prisma.student.findUnique({
     where: { id: params.id },
-    include: {
-      monthlyPayments: {
+  });
+
+  const monthlyPayments = student
+    ? await prisma.monthlyPayment.findMany({
+        where: { studentId: params.id },
         orderBy: { monthCovered: "desc" },
         take: 10,
-      },
-      dailyClassSales: {
+      })
+    : [];
+
+  const dailyClassSales = student
+    ? await prisma.dailyClassSale.findMany({
+        where: { studentId: params.id },
         orderBy: { classDate: "desc" },
         take: 10,
-      },
-    },
-  });
+      })
+    : [];
 
   if (!student) {
     return (
@@ -84,7 +90,7 @@ export default async function StudentEditPage({
           <div className="lg:col-span-2">
             <div className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
               <h2 className="mb-4 text-xl font-bold text-slate-900">Información del Alumno</h2>
-              <StudentEditForm student={student} />
+      <StudentEditForm student={student} monthlyPayments={monthlyPayments} />
             </div>
           </div>
 
@@ -111,11 +117,11 @@ export default async function StudentEditPage({
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h3 className="mb-2 font-bold text-slate-900">Últimos pagos</h3>
-              {student.monthlyPayments.length === 0 ? (
+              {monthlyPayments.length === 0 ? (
                 <p className="text-sm text-slate-600">Sin pagos registrados</p>
               ) : (
                 <ul className="space-y-2 text-sm">
-                  {student.monthlyPayments.slice(0, 5).map((payment) => (
+                  {monthlyPayments.slice(0, 5).map((payment: any) => (
                     <li key={payment.id} className="rounded-lg border border-slate-200 bg-white p-2">
                       <p className="font-medium">{payment.discipline}</p>
                       <p className="text-xs text-slate-600">${payment.amount.toLocaleString("es-CL")}</p>

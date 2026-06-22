@@ -20,7 +20,13 @@ type Student = {
   isActive: boolean;
 };
 
-export function StudentEditForm({ student }: { student: Student }) {
+export function StudentEditForm({ 
+  student, 
+  monthlyPayments = [] 
+}: { 
+  student: Student; 
+  monthlyPayments?: any[]; 
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
