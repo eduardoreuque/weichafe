@@ -202,3 +202,41 @@ export async function deleteStudentAction(studentId: string): Promise<ActionResu
     return { ok: false, error: "No se pudo eliminar el alumno." };
   }
 }
+
+export async function updateStudentAction(
+  studentId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  if (!studentId) return { ok: false, error: "ID de alumno requerido" };
+
+  const fullName = normalizeString(formData.get("fullName"));
+  const birthDateRaw = normalizeString(formData.get("birthDate"));
+
+  if (!fullName) return { ok: false, error: "El nombre completo es requerido" };
+  if (!birthDateRaw) return { ok: false, error: "La fecha de nacimiento es requerida" };
+
+  try {
+    await prisma.student.update({
+      where: { id: studentId },
+      data: {
+        fullName,
+        birthDate: new Date(birthDateRaw),
+        rut: normalizeString(formData.get("rut")),
+        email: normalizeString(formData.get("email")),
+        whatsapp: normalizeString(formData.get("whatsapp")),
+        address: normalizeString(formData.get("address")),
+        district: normalizeString(formData.get("district")),
+        emergencyContact: normalizeString(formData.get("emergencyContact")),
+        emergencyPhone: normalizeString(formData.get("emergencyPhone")),
+        notes: normalizeString(formData.get("notes")),
+        photoUrl: normalizeString(formData.get("photoUrl")),
+        isActive: formData.get("isActive") !== "false",
+      },
+    });
+    revalidatePath("/");
+    revalidatePath("/alumnos");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "No se pudo actualizar el alumno. Intenta nuevamente." };
+  }
+}
