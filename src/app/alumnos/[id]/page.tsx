@@ -9,18 +9,20 @@ import { StudentEditForm } from "@/components/student-edit-form";
 export default async function StudentEditPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const { id } = await params;
+
   const student = await prisma.student.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
 
   const monthlyPayments = student
     ? await prisma.monthlyPayment.findMany({
-        where: { studentId: params.id },
+        where: { studentId: id },
         orderBy: { monthCovered: "desc" },
         take: 10,
       })
@@ -28,7 +30,7 @@ export default async function StudentEditPage({
 
   const dailyClassSales = student
     ? await prisma.dailyClassSale.findMany({
-        where: { studentId: params.id },
+        where: { studentId: id },
         orderBy: { classDate: "desc" },
         take: 10,
       })
