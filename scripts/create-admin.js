@@ -1,28 +1,32 @@
-const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcryptjs");
-const prisma = new PrismaClient();
+const bcrypt = require("bcrypt");
+const path = require("path");
+const Database = require("better-sqlite3");
 
-async function main() {
-  const users = await prisma.user.findMany({
-    select: { id: true, email: true, name: true, role: true }
-  });
-  console.log("Usuarios encontrados:", JSON.stringify(users, null, 2));
-  
-  if (users.length === 0) {
-    console.log("No hay usuarios. Creando admin...");
-    const hash = bcrypt.hashSync("admin123", 10);
-    const user = await prisma.user.create({
-      data: {
-        email: "admin@weichafe.cl",
-        passwordHash: hash,
-        name: "Administrador",
-        role: "ADMIN"
-      }
-    });
-    console.log("Admin creado:", JSON.stringify(user, null, 2));
-  } else {
-    console.log("Ya existen usuarios en la base de datos");
-  }
+const dbPath = process.env.DATABASE_URL
+  ? process.env.DATABASE_URL.replace("file:", "")
+  : path.join(__dirname, "..", "prisma", "dev.db");
+
+let db;
+try {
+  db = new Database(dbPath);
+} catch (e) {
+  console.error("Error abriendo BD:", e.message);
+  process.exit(1);
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+const users = db.prepare("SELECT id, email, name, role FROM User").all();
+console.log("Usuarios encontrados:", JSON.stringify(users, null, 2));
+
+if (users.length === 0) {
+  console.log("No hay usuarios. Creando admin...");
+  const hash = bcrypt.hashSync("admin123", 10);
+  const stmt = db.prepare(
+    "INSERT INTO User (email, passwordHash, name, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, datetime(), datetime())"
+  );
+  const result = stmt.run("admin@weichafe.cl", hash, "Administrador", "ADMIN");
+  console.log("Admin creado con id:", result.lastInsertRowid);
+} else {
+  console.log("Ya existen usuarios en la base de datos");
+}
+
+db.close();
