@@ -116,13 +116,9 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
     sudo dnf install -y nodejs
   fi
   
-  # Aplicar migraciones de Prisma y regenerar cliente
+  # Aplicar migraciones de Prisma (sin regenerar cliente para evitar mismatch)
   cd /home/ec2-user/weichafe-standalone
   npx prisma migrate deploy --schema=./prisma/schema.prisma || true
-  npx prisma generate --schema=./prisma/schema.prisma || true
-  
-  # Ejecutar seed si existe
-  npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
   
   # Recrear BD desde CSV y crear admin si no existe
   rm -f prisma/dev.db
