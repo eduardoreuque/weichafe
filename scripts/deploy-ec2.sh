@@ -102,10 +102,7 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
   
-  # Preservar base de datos entre deploys
-  if [ -f prisma/dev.db ]; then
-    cp prisma/dev.db /tmp/dev.db.backup
-  fi
+  # NOTA: No preservamos BD entre deploys - siempre se recrea desde CSV
   
   # Restaurar uploads
   if [ -d /tmp/uploads.backup ]; then
@@ -126,14 +123,12 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Ejecutar seed si existe
   npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
   
-  # Restaurar base de datos si se hizo backup
-  if [ -f /tmp/dev.db.backup ]; then
-    cp /tmp/dev.db.backup prisma/dev.db
-    rm -f /tmp/dev.db.backup
-  fi
-  
-  # Asegurar que exista usuario admin
-  DATABASE_URL=file:./prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || echo "Admin creation skipped"
+  # Recrear BD desde CSV y crear admin si no existe
+  rm -f prisma/dev.db
+  npx prisma migrate deploy --schema=./prisma/schema.prisma
+  chmod 666 prisma/dev.db
+  DATABASE_URL=file:./prisma/dev.db npx tsx scripts/migrate-csv.ts lista_weichafe.csv 2>/dev/null || true
+  DATABASE_URL=file:./prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || true
   
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
