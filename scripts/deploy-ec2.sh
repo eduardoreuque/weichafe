@@ -132,6 +132,9 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
     rm -f /tmp/dev.db.backup
   fi
   
+  # Asegurar que exista usuario admin
+  DATABASE_URL=file:./prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || echo "Admin creation skipped"
+  
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
 [Unit]
