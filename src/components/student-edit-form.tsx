@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { updateStudentAction } from "@/app/actions";
 
@@ -30,6 +30,20 @@ export function StudentEditForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(student.photoUrl);
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
 
   async function handleSubmit(formData: FormData) {
     setIsSubmitting(true);
@@ -37,6 +51,26 @@ export function StudentEditForm({
     setSuccess(null);
 
     try {
+      // Si hay una nueva foto, subirla primero
+      if (photoFile) {
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", photoFile);
+        
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: uploadFormData,
+        });
+        
+        if (!uploadRes.ok) {
+          throw new Error("Error al subir la foto");
+        }
+        
+        const { url } = await uploadRes.json();
+        formData.set("photoUrl", url);
+      } else {
+        formData.set("photoUrl", student.photoUrl || "");
+      }
+
       const result = await updateStudentAction(student.id, formData);
       if (result.ok === false) {
         setError(result.error);
@@ -166,15 +200,23 @@ export function StudentEditForm({
 
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-semibold text-slate-700">
-            URL de foto
+            Foto del alumno
           </label>
           <input
-            type="url"
-            name="photoUrl"
-            defaultValue={student.photoUrl ?? ""}
-            placeholder="https://ejemplo.com/foto.jpg"
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
             className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
+          {photoPreview && (
+            <div className="mt-2">
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="h-32 w-32 rounded-full object-cover"
+              />
+            </div>
+          )}
         </div>
 
         <div className="sm:col-span-2">
