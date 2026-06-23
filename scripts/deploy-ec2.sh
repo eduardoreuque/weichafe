@@ -116,9 +116,10 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
     sudo dnf install -y nodejs
   fi
   
-  # Aplicar migraciones de Prisma
+  # Aplicar migraciones de Prisma y regenerar cliente
   cd /home/ec2-user/weichafe-standalone
   npx prisma migrate deploy --schema=./prisma/schema.prisma || true
+  npx prisma generate --schema=./prisma/schema.prisma || true
   
   # Ejecutar seed si existe
   npx prisma db seed --schema=./prisma/schema.prisma 2>/dev/null || true
@@ -127,8 +128,8 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   rm -f prisma/dev.db
   npx prisma migrate deploy --schema=./prisma/schema.prisma
   chmod 666 prisma/dev.db
-  DATABASE_URL=file:./prisma/dev.db npx tsx scripts/migrate-csv.ts lista_weichafe.csv 2>/dev/null || true
-  DATABASE_URL=file:./prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || true
+  DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/migrate-csv.ts lista_weichafe.csv 2>/dev/null || true
+  DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || true
   
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
