@@ -123,12 +123,11 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Aplicar migraciones de Prisma
   npx prisma migrate deploy --schema=./prisma/schema.prisma || true
   
-  # Preservar BD existente - NO borrar datos
-  if [ ! -f prisma/dev.db ]; then
-    npx prisma migrate deploy --schema=./prisma/schema.prisma
-    chmod 666 prisma/dev.db
-    DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/import-csv-direct.ts 2>/dev/null || true
-  fi
+  # Siempre recrear BD desde CSV para tener datos actualizados
+  rm -f prisma/dev.db
+  npx prisma migrate deploy --schema=./prisma/schema.prisma
+  chmod 666 prisma/dev.db
+  DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/import-csv-direct.ts 2>/dev/null || true
   DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || true
   
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
