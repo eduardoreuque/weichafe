@@ -34,13 +34,13 @@ export default async function StudentsPage({
   return (
     <main className="relative min-h-screen px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
       {/* Fondo izquierdo */}
-      <div className="fixed left-0 top-0 h-full w-1/4 opacity-20 pointer-events-none">
-        <Image src="/1.png" alt="" fill className="object-contain" />
+      <div className="fixed left-0 top-0 h-full w-1/3 opacity-40 pointer-events-none z-0">
+        <Image src="/1.png" alt="" fill className="object-contain" priority />
       </div>
       
       {/* Fondo derecho */}
-      <div className="fixed right-0 top-0 h-full w-1/4 opacity-20 pointer-events-none">
-        <Image src="/2.png" alt="" fill className="object-contain" />
+      <div className="fixed right-0 top-0 h-full w-1/3 opacity-40 pointer-events-none z-0">
+        <Image src="/2.png" alt="" fill className="object-contain" priority />
       </div>
       
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6">
