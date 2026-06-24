@@ -115,8 +115,18 @@ export default async function Home() {
   });
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_5%_10%,#f8f7ef_0,#e9f2ff_35%,#f2e7db_75%,#e8eceb_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="relative min-h-screen px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
+      {/* Fondo izquierdo */}
+      <div className="fixed left-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
+        <img src="/1.png" alt="" className="h-full w-full object-contain" />
+      </div>
+      
+      {/* Fondo derecho */}
+      <div className="fixed right-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
+        <img src="/2.png" alt="" className="h-full w-full object-contain" />
+      </div>
+      
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6">
         <header className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-lg backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4">

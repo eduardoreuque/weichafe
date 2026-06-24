@@ -8,8 +8,18 @@ export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, null);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_5%_10%,#f8f7ef_0,#e9f2ff_35%,#f2e7db_75%,#e8eceb_100%)] px-4">
-      <div className="w-full max-w-sm rounded-3xl border border-black/10 bg-white/90 p-8 shadow-xl backdrop-blur">
+    <main className="relative flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_5%_10%,#f8f7ef_0,#e9f2ff_35%,#f2e7db_75%,#e8eceb_100%)]">
+      {/* Fondo izquierdo */}
+      <div className="fixed left-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
+        <img src="/1.png" alt="" className="h-full w-full object-contain" />
+      </div>
+      
+      {/* Fondo derecho */}
+      <div className="fixed right-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
+        <img src="/2.png" alt="" className="h-full w-full object-contain" />
+      </div>
+      
+      <div className="relative w-full max-w-sm rounded-3xl border border-black/10 bg-white/90 p-8 shadow-xl backdrop-blur">
         <div className="mb-6 flex flex-col items-center gap-3">
           <Image
             src="/weichafe.jpg"
