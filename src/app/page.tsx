@@ -116,13 +116,13 @@ export default async function Home() {
 
   return (
     <main className="relative min-h-screen px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
-      {/* Fondo izquierdo */}
-      <div className="fixed left-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
+      {/* Fondo izquierdo - pegado al borde */}
+      <div className="fixed left-0 top-0 h-screen w-1/3 opacity-100 pointer-events-none z-0">
         <img src="/1.png" alt="" className="h-full w-full object-contain" />
       </div>
       
-      {/* Fondo derecho */}
-      <div className="fixed right-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
+      {/* Fondo derecho - pegado al borde */}
+      <div className="fixed right-0 top-0 h-screen w-1/3 opacity-100 pointer-events-none z-0">
         <img src="/2.png" alt="" className="h-full w-full object-contain" />
       </div>
       
