@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -35,19 +34,19 @@ export default async function StudentsPage({
     <main className="relative min-h-screen px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
       {/* Fondo izquierdo */}
       <div className="fixed left-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
-        <Image src="/1.png" alt="" fill className="object-contain" priority />
+        <img src="/1.png" alt="" className="h-full w-full object-contain" />
       </div>
       
       {/* Fondo derecho */}
       <div className="fixed right-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
-        <Image src="/2.png" alt="" fill className="object-contain" priority />
+        <img src="/2.png" alt="" className="h-full w-full object-contain" />
       </div>
       
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6">
         <header className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-lg backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Image src="/weichafe.jpg" alt="Logo Equipo Weichafe" width={72} height={72} className="rounded-full border border-emerald-500/40 bg-slate-900 p-1" priority />
+              <img src="/weichafe.jpg" alt="Logo Equipo Weichafe" width={72} height={72} className="rounded-full border border-emerald-500/40 bg-slate-900 p-1" />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Academia Weichafe</p>
                 <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Gestión de Alumnos</h1>
@@ -111,7 +110,7 @@ export default async function StudentsPage({
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex items-start gap-4">
                       {student.photoUrl ? (
-                        <Image
+                        <img
                           src={student.photoUrl}
                           alt={student.fullName}
                           width={64}
