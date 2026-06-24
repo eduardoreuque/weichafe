@@ -102,8 +102,6 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
   # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
   
-  # NOTA: No preservamos BD entre deploys - siempre se recrea desde CSV
-  
   # Restaurar uploads
   if [ -d /tmp/uploads.backup ]; then
     sudo mkdir -p /var/weichafe
@@ -116,20 +114,11 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
     sudo dnf install -y nodejs
   fi
   
-  # Generar cliente Prisma nativo para Linux (los binarios del bundle son de Windows)
+  # NUNCA tocar la BD en deploy - solo generar cliente Prisma
   cd /home/ec2-user/weichafe-standalone
   npx prisma generate --schema=./prisma/schema.prisma || true
   
-  # Aplicar migraciones de Prisma
-  npx prisma migrate deploy --schema=./prisma/schema.prisma || true
-  
-  # NUNCA borrar la BD - solo crearla si no existe
-  if [ ! -f prisma/dev.db ]; then
-    npx prisma migrate deploy --schema=./prisma/schema.prisma
-    chmod 666 prisma/dev.db
-    DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/migrate-csv.ts lista_weichafe.csv 2>/dev/null || true
-  fi
-  DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db npx tsx scripts/create-admin-standalone.ts 2>/dev/null || true
+  # NO ejecutar migraciones ni crear BD - los datos se preservan intactos
   
   if ! systemctl list-unit-files | grep -q "^weichafe.service"; then
     cat <<"SERVICE" | sudo tee /etc/systemd/system/weichafe.service >/dev/null
