@@ -34,12 +34,12 @@ export default async function StudentsPage({
   return (
     <main className="relative min-h-screen px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
       {/* Fondo izquierdo */}
-      <div className="fixed left-0 top-0 h-full w-1/3 opacity-60 pointer-events-none z-0">
+      <div className="fixed left-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
         <Image src="/1.png" alt="" fill className="object-contain" priority />
       </div>
       
       {/* Fondo derecho */}
-      <div className="fixed right-0 top-0 h-full w-1/3 opacity-60 pointer-events-none z-0">
+      <div className="fixed right-0 top-0 h-full w-1/3 opacity-100 pointer-events-none z-0">
         <Image src="/2.png" alt="" fill className="object-contain" priority />
       </div>
       
@@ -95,7 +95,11 @@ export default async function StudentsPage({
 
           <StudentSearch initialQuery={query} />
 
-          <div className="mt-6 grid gap-4">
+          <details className="mt-6">
+            <summary className="cursor-pointer rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+              Ver lista de alumnos ({students.length})
+            </summary>
+            <div className="mt-4 grid gap-4">
             {students.length === 0 ? (
               <p className="text-center text-sm text-slate-600">No se encontraron alumnos.</p>
             ) : (
@@ -152,6 +156,7 @@ export default async function StudentsPage({
               ))
             )}
           </div>
+        </details>
         </section>
       </div>
     </main>
