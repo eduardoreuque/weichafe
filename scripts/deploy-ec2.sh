@@ -99,8 +99,19 @@ retry 3 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "ec2-user@$EC2_HOST" '
     cp -r /var/weichafe/uploads /tmp/uploads.backup
   fi
   
+  # PRESERVAR BD - respaldar antes de descomprimir
+  if [ -f /home/ec2-user/weichafe-standalone/prisma/dev.db ]; then
+    cp /home/ec2-user/weichafe-standalone/prisma/dev.db /tmp/dev.db.backup
+  fi
+  
   # Descomprimir nuevo deploy
   tar xzf /home/ec2-user/weichafe-standalone.tar.gz -C /home/ec2-user/weichafe-standalone
+  
+  # RESTAURAR BD - recuperar después de descomprimir
+  if [ -f /tmp/dev.db.backup ]; then
+    mv /tmp/dev.db.backup /home/ec2-user/weichafe-standalone/prisma/dev.db
+    chmod 666 /home/ec2-user/weichafe-standalone/prisma/dev.db
+  fi
   
   # Restaurar uploads
   if [ -d /tmp/uploads.backup ]; then
