@@ -21,6 +21,7 @@ export function ScheduleManager() {
 
   const [formData, setFormData] = useState({
     discipline: "MMA",
+    customDiscipline: "",
     dayOfWeek: "LUNES",
     startTime: "17:00",
     endTime: "18:00",
@@ -48,7 +49,10 @@ export function ScheduleManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const action = editingSchedule ? "update" : "create";
-    const schedule = editingSchedule ? { ...formData, id: editingSchedule.id } : formData;
+    const disciplineValue = formData.discipline === "OTRO" ? formData.customDiscipline : formData.discipline;
+    const schedule = editingSchedule 
+      ? { ...formData, id: editingSchedule.id, discipline: disciplineValue }
+      : { ...formData, discipline: disciplineValue };
 
     try {
       const res = await fetch("/api/schedules", {
@@ -70,6 +74,7 @@ export function ScheduleManager() {
     setEditingSchedule(schedule);
     setFormData({
       discipline: schedule.discipline,
+      customDiscipline: "",
       dayOfWeek: schedule.dayOfWeek,
       startTime: schedule.startTime,
       endTime: schedule.endTime,
@@ -101,6 +106,7 @@ export function ScheduleManager() {
   const resetForm = () => {
     setFormData({
       discipline: "MMA",
+      customDiscipline: "",
       dayOfWeek: "LUNES",
       startTime: "17:00",
       endTime: "18:00",
@@ -150,6 +156,20 @@ export function ScheduleManager() {
                 ))}
               </select>
             </div>
+
+            {formData.discipline === "OTRO" && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">Nombre de la Disciplina</label>
+                <input
+                  type="text"
+                  value={formData.customDiscipline}
+                  onChange={(e) => setFormData({ ...formData, customDiscipline: e.target.value })}
+                  placeholder="Ej: Karate, Taekwondo, etc."
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-semibold text-slate-700">Día</label>
