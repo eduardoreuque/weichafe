@@ -1,0 +1,154 @@
+{
+  "schedules": [
+    {
+      "id": "mma-horario-1",
+      "discipline": "MMA",
+      "dayOfWeek": "LUNES",
+      "startTime": "17:00",
+      "endTime": "18:00",
+      "blockName": "Horario 1",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "mma-horario-2",
+      "discipline": "MMA",
+      "dayOfWeek": "LUNES",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "blockName": "Horario 2",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "mma-horario-3",
+      "discipline": "MMA",
+      "dayOfWeek": "LUNES",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "blockName": "Horario 3",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "mma-horario-4",
+      "discipline": "MMA",
+      "dayOfWeek": "LUNES",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "blockName": "Horario 4",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "mma-horario-5",
+      "discipline": "MMA",
+      "dayOfWeek": "MARTES",
+      "startTime": "08:00",
+      "endTime": "09:00",
+      "blockName": "Horario 5",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "mma-horario-6",
+      "discipline": "MMA",
+      "dayOfWeek": "MARTES",
+      "startTime": "20:15",
+      "endTime": "21:15",
+      "blockName": "Horario 6",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "mma-horario-7",
+      "discipline": "MMA",
+      "dayOfWeek": "LUNES",
+      "startTime": "21:15",
+      "endTime": "22:15",
+      "blockName": "Horario 7 (Solo competidores)",
+      "location": "Sala Principal",
+      "isActive": true
+    },
+    {
+      "id": "bjj-horario-1",
+      "discipline": "JIU_JITSU",
+      "dayOfWeek": "LUNES",
+      "startTime": "20:00",
+      "endTime": "21:00",
+      "blockName": "Horario 1",
+      "location": "Sala BJJ",
+      "isActive": true
+    },
+    {
+      "id": "bjj-horario-2",
+      "discipline": "JIU_JITSU",
+      "dayOfWeek": "MARTES",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "blockName": "Horario 2",
+      "location": "Sala BJJ",
+      "isActive": true
+    },
+    {
+      "id": "bjj-horario-3",
+      "discipline": "JIU_JITSU",
+      "dayOfWeek": "MARTES",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "blockName": "Horario 3",
+      "location": "Sala BJJ",
+      "isActive": true
+    },
+    {
+      "id": "bjj-horario-4",
+      "discipline": "JIU_JITSU",
+      "dayOfWeek": "LUNES",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "blockName": "Horario 4 (Solo mujeres)",
+      "location": "Sala BJJ",
+      "isActive": true
+    },
+    {
+      "id": "kick-horario-1",
+      "discipline": "KICK",
+      "dayOfWeek": "LUNES",
+      "startTime": "18:00",
+      "endTime": "19:00",
+      "blockName": "Horario 1",
+      "location": "Sala Kick",
+      "isActive": true
+    },
+    {
+      "id": "kick-horario-2",
+      "discipline": "KICK",
+      "dayOfWeek": "LUNES",
+      "startTime": "19:00",
+      "endTime": "20:00",
+      "blockName": "Horario 2",
+      "location": "Sala Kick",
+      "isActive": true
+    },
+    {
+      "id": "boxeo-horario-1",
+      "discipline": "BOXEO",
+      "dayOfWeek": "LUNES",
+      "startTime": "17:00",
+      "endTime": "18:00",
+      "blockName": "Horario 1",
+      "location": "Sala Boxeo",
+      "isActive": true
+    },
+    {
+      "id": "boxeo-horario-2",
+      "discipline": "BOXEO",
+      "dayOfWeek": "LUNES",
+      "startTime": "21:00",
+      "endTime": "22:00",
+      "blockName": "Horario 2",
+      "location": "Sala Boxeo",
+      "isActive": true
+    }
+  ]
+}

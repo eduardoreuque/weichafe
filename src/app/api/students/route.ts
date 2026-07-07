@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
 
 function normalizeString(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
@@ -38,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await prisma.student.create({
+    const student = await prisma.student.create({
       data: {
         fullName,
         birthDate,
@@ -54,6 +58,15 @@ export async function POST(request: Request) {
         isActive: body.isActive !== false,
       },
     });
+
+    // Guardar horarios seleccionados
+    const schedules = Array.isArray(body.schedules) ? body.schedules : [];
+    if (schedules.length > 0) {
+      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+      const studentSchedules = JSON.parse(data);
+      studentSchedules[student.id] = schedules;
+      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+    }
 
     revalidatePath("/");
     return NextResponse.json({ ok: true });
@@ -101,6 +114,16 @@ export async function DELETE(request: Request) {
         where: { id: studentId },
       });
     });
+
+    // Eliminar horarios del alumno
+    try {
+      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+      const studentSchedules = JSON.parse(data);
+      delete studentSchedules[studentId];
+      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+    } catch (error) {
+      console.error("Error deleting student schedules:", error);
+    }
 
     revalidatePath("/");
     return NextResponse.json({ ok: true });

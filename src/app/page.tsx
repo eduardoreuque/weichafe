@@ -143,6 +143,28 @@ export default async function Home() {
               >
                 Gestión de Alumnos
               </Link>
+              {session.role === "ADMIN" && (
+                <>
+                  <Link
+                    href="/admin/horarios"
+                    className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                  >
+                    Horarios
+                  </Link>
+                  <Link
+                    href="/admin/alumnos-por-horario"
+                    className="rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    Alumnos por Horario
+                  </Link>
+                  <Link
+                    href="/admin/pagos-por-horario"
+                    className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+                  >
+                    Pagos por Horario
+                  </Link>
+                </>
+              )}
               <div className="text-right text-sm">
                 <p className="font-semibold text-slate-700">{session.name}</p>
                 <p className={`text-xs font-bold ${session.role === "ADMIN" ? "text-violet-600" : "text-slate-500"}`}>

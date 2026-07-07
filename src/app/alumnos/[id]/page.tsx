@@ -5,6 +5,10 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
 import { StudentEditForm } from "@/components/student-edit-form";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
 
 export default async function StudentEditPage({
   params,
@@ -35,6 +39,21 @@ export default async function StudentEditPage({
         take: 10,
       })
     : [];
+
+  // Obtener horarios del alumno
+  let studentSchedules: any[] = [];
+  try {
+    const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+    const allStudentSchedules = JSON.parse(data);
+    const scheduleIds = allStudentSchedules[id] || [];
+    
+    // Obtener detalles de los horarios
+    const schedulesData = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
+    const allSchedules = JSON.parse(schedulesData).schedules;
+    studentSchedules = allSchedules.filter((s: any) => scheduleIds.includes(s.id));
+  } catch (error) {
+    console.error("Error loading student schedules:", error);
+  }
 
   if (!student) {
     return (
@@ -132,6 +151,25 @@ export default async function StudentEditPage({
                 </ul>
               )}
             </div>
+
+            {studentSchedules.length > 0 && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <h3 className="mb-3 font-bold text-slate-900">Horarios de Clases</h3>
+                <div className="space-y-2">
+                  {studentSchedules.map((schedule: any) => (
+                    <div key={schedule.id} className="rounded-lg border border-emerald-200 bg-white p-3">
+                      <p className="font-semibold text-sm text-slate-900">{schedule.discipline}</p>
+                      <p className="text-xs text-slate-600">{schedule.dayOfWeek}</p>
+                      <p className="text-xs font-semibold text-slate-700">
+                        {schedule.startTime} - {schedule.endTime}
+                      </p>
+                      <p className="text-xs text-slate-500">{schedule.blockName}</p>
+                      {schedule.location && <p className="text-xs text-slate-500">📍 {schedule.location}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </div>

@@ -1,10 +1,20 @@
 "use client";
 
-import { FormEvent, useState, useRef } from "react";
+import { FormEvent, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 type StudentSubmitResult = { ok: true } | { ok: false; error: string };
+
+interface Schedule {
+  id: string;
+  discipline: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  blockName: string;
+  location?: string;
+}
 
 export function StudentForm() {
   const [state, setState] = useState<StudentSubmitResult | null>(null);
@@ -13,8 +23,14 @@ export function StudentForm() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    loadSchedules();
+  }, []);
 
   async function handlePhotoUpload(file: File) {
     if (!file) return;
@@ -49,6 +65,24 @@ export function StudentForm() {
     }
   }
 
+  const loadSchedules = async () => {
+    try {
+      const res = await fetch("/api/schedules");
+      const data = await res.json();
+      setSchedules(data);
+    } catch (error) {
+      console.error("Error loading schedules:", error);
+    }
+  };
+
+  const toggleSchedule = (scheduleId: string) => {
+    setSelectedSchedules((prev) =>
+      prev.includes(scheduleId)
+        ? prev.filter((id) => id !== scheduleId)
+        : [...prev, scheduleId]
+    );
+  };
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsPending(true);
@@ -69,6 +103,7 @@ export function StudentForm() {
       notes: formData.get("notes"),
       photoUrl: uploadedPhotoUrl,
       isActive: formData.get("isActive") === "on",
+      schedules: selectedSchedules,
     };
 
     try {
@@ -205,6 +240,40 @@ export function StudentForm() {
           />
           Alumno activo
         </label>
+
+        {schedules.length > 0 && (
+          <div className="rounded-xl border border-slate-200 p-4">
+            <p className="mb-3 text-sm font-semibold text-slate-700">
+              Horarios de clases (selecciona los horarios a los que asistirá):
+            </p>
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {schedules.map((schedule) => (
+                <label
+                  key={schedule.id}
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSchedules.includes(schedule.id)}
+                    onChange={() => toggleSchedule(schedule.id)}
+                    className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {schedule.discipline} - {schedule.blockName}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      {schedule.dayOfWeek} | {schedule.startTime} - {schedule.endTime}
+                    </p>
+                    {schedule.location && (
+                      <p className="text-xs text-slate-500">📍 {schedule.location}</p>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <button
