@@ -20,6 +20,7 @@ import { StudentForm } from "@/components/student-form";
 import { PaymentForm } from "@/components/payment-form";
 import { ClassForm } from "@/components/class-form";
 import { StudentDeleteButton } from "@/components/student-delete-button";
+import { CollapsibleSection } from "@/components/collapsible-section";
 
 const monthlyFees = [
   { name: "Boxeo y MMA mujeres", amount: "$44.990" },
@@ -300,9 +301,16 @@ export default async function Home() {
           <ClassForm students={students.map((s) => ({ id: s.id, fullName: s.fullName }))} />
         </section>
 
-        <section className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
-          <h2 className="text-xl font-bold">Alumnos y estado de mensualidades</h2>
-          <div className="mt-4 grid gap-4">
+        <CollapsibleSection 
+          title="Alumnos y estado de mensualidades" 
+          defaultOpen={false}
+          badge={
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              {students.length} alumno{students.length !== 1 ? "s" : ""}
+            </span>
+          }
+        >
+          <div className="grid gap-4">
             {students.length === 0 ? <p className="text-sm text-slate-600">Aún no hay alumnos registrados.</p> : null}
             {students.map((student) => {
               const skippedByDiscipline = detectSkippedMonthsByDiscipline(student.monthlyPayments);
@@ -403,7 +411,7 @@ export default async function Home() {
               );
             })}
           </div>
-        </section>
+        </CollapsibleSection>
 
         <section className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm">
