@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 export function StudentSearch({ initialQuery }: { initialQuery: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { replace } = useRouter();
+  const { replace, refresh } = useRouter();
 
   const handleSearch = (term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -15,6 +15,7 @@ export function StudentSearch({ initialQuery }: { initialQuery: string }) {
       params.delete("q");
     }
     replace(`${pathname}?${params.toString()}`);
+    refresh();
   };
 
   return (
