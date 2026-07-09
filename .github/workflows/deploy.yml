@@ -120,7 +120,17 @@ jobs:
               '
         continue-on-error: true
 
-      - name: Generar cliente Prisma (sin migraciones)
+      - name: Aplicar migraciones de Prisma
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 \
+              -o StrictHostKeyChecking=no \
+              ec2-user@${{ secrets.EC2_HOST }} '
+                cd ~/weichafe-standalone
+                npx prisma migrate deploy --schema=./prisma/schema.prisma 2>/dev/null || echo "No hay migraciones pendientes"
+              '
+        continue-on-error: true
+
+      - name: Generar cliente Prisma
         run: |
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
