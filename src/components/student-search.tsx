@@ -7,10 +7,14 @@ export function StudentSearch({ initialQuery }: { initialQuery: string }) {
   const pathname = usePathname();
   const { replace, refresh } = useRouter();
 
-  const handleSearch = (term: string) => {
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const query = formData.get("search") as string;
+
     const params = new URLSearchParams(searchParams);
-    if (term) {
-      params.set("q", term);
+    if (query) {
+      params.set("q", query);
     } else {
       params.delete("q");
     }
@@ -19,13 +23,13 @@ export function StudentSearch({ initialQuery }: { initialQuery: string }) {
   };
 
   return (
-    <div className="relative">
+    <form onSubmit={handleSearch} className="relative">
       <input
         type="search"
+        name="search"
         defaultValue={initialQuery}
-        onChange={(e) => handleSearch(e.target.value)}
-        placeholder="Buscar por nombre, RUT o email..."
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 pl-12 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+        placeholder="Buscar por nombre, RUT, email o WhatsApp..."
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 pl-12 pr-12 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
       />
       <svg
         className="absolute left-4 top-3.5 h-5 w-5 text-slate-400"
@@ -40,6 +44,12 @@ export function StudentSearch({ initialQuery }: { initialQuery: string }) {
           d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
         />
       </svg>
-    </div>
+      <button
+        type="submit"
+        className="absolute right-2 top-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+      >
+        Buscar
+      </button>
+    </form>
   );
 }
