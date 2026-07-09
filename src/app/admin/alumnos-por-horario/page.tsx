@@ -38,7 +38,7 @@ export default async function StudentsBySchedulePage() {
     const schedulesJson = JSON.parse(schedulesData);
     schedules = Object.values(schedulesJson).filter((s: any) => s.isActive !== false);
     schedules.sort((a: any, b: any) => {
-      const dayOrder = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
+      const dayOrder = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "ABADO", "DOMINGO"];
       const dayCompare = dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
       if (dayCompare !== 0) return dayCompare;
       return a.startTime.localeCompare(b.startTime);
@@ -46,6 +46,26 @@ export default async function StudentsBySchedulePage() {
   } catch (error) {
     console.error("Error loading schedules:", error);
   }
+
+  // Obtener todos los alumnos con horario asignado
+  const studentsWithSchedule = await prisma.student.findMany({
+    where: { scheduleId: { not: null } },
+    include: { 
+      monthlyPayments: { orderBy: { monthCovered: "desc" }, take: 5 },
+      dailyClassSales: { orderBy: { classDate: "desc" }, take: 5 }
+    },
+  });
+
+  // Agrupar alumnos por horario
+  const studentsBySchedule: Record<string, typeof studentsWithSchedule> = {};
+  studentsWithSchedule.forEach((student) => {
+    if (student.scheduleId) {
+      if (!studentsBySchedule[student.scheduleId]) {
+        studentsBySchedule[student.scheduleId] = [];
+      }
+      studentsBySchedule[student.scheduleId].push(student);
+    }
+  });
 
   // Obtener todos los pagos con sus horarios
   const payments = await prisma.monthlyPayment.findMany({
@@ -146,12 +166,10 @@ export default async function StudentsBySchedulePage() {
           ) : (
             <div className="grid gap-6">
               {schedules.map((schedule) => {
+                const scheduleStudents = studentsBySchedule[schedule.id] || [];
                 const schedulePayments = paymentsBySchedule[schedule.id] || [];
                 const scheduleClasses = classesBySchedule[schedule.id] || [];
-                const totalStudents = new Set([
-                  ...schedulePayments.map((p) => p.studentId),
-                  ...scheduleClasses.map((c) => c.studentId).filter(Boolean),
-                ]).size;
+                const totalStudents = scheduleStudents.length;
 
                 return (
                   <div
@@ -180,16 +198,68 @@ export default async function StudentsBySchedulePage() {
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                      {/* Mensualidades */}
+                      {/* Alumnos asignados */}
                       <div className="rounded-xl bg-slate-50 p-4">
                         <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                          Mensualidades ({schedulePayments.length})
+                          Alumnos asignados ({scheduleStudents.length})
                         </h4>
-                        {schedulePayments.length === 0 ? (
-                          <p className="text-xs text-slate-500">Sin mensualidades registradas</p>
+                        {scheduleStudents.length === 0 ? (
+                          <p className="text-xs text-slate-500">Sin alumnos asignados</p>
                         ) : (
                           <div className="space-y-2">
-                            {schedulePayments.map((payment) => (
+                            {scheduleStudents.map((student) => (
+                              <div
+                                key={student.id}
+                                className="flex items-center justify-between rounded-lg bg-white p-2"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {student.photoUrl ? (
+                                    <img
+                                      src={student.photoUrl}
+                                      alt={student.fullName}
+                                      width={32}
+                                      height={32}
+                                      className="rounded-full border border-slate-200 object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
+                                      {student.fullName.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="text-sm font-medium text-slate-900">
+                                      {student.fullName}
+                                    </p>
+                                    <p className="text-xs text-slate-600">
+                                      {student.rut || "Sin RUT"}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span
+                                  className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                    student.isActive
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-amber-100 text-amber-700"
+                                  }`}
+                                >
+                                  {student.isActive ? "Activo" : "Inactivo"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Mensualidades y clases */}
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <h4 className="mb-2 text-sm font-semibold text-slate-700">
+                          Actividad reciente
+                        </h4>
+                        {schedulePayments.length === 0 && scheduleClasses.length === 0 ? (
+                          <p className="text-xs text-slate-500">Sin actividad registrada</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {schedulePayments.slice(0, 3).map((payment) => (
                               <div
                                 key={payment.id}
                                 className="flex items-center justify-between rounded-lg bg-white p-2"
@@ -200,7 +270,7 @@ export default async function StudentsBySchedulePage() {
                                   </p>
                                   <p className="text-xs text-slate-600">
                                     {payment.monthCovered.toLocaleDateString("es-CL", {
-                                      month: "long",
+                                      month: "short",
                                       year: "numeric",
                                     })}
                                   </p>
@@ -218,20 +288,7 @@ export default async function StudentsBySchedulePage() {
                                 </span>
                               </div>
                             ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Clases diarias */}
-                      <div className="rounded-xl bg-slate-50 p-4">
-                        <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                          Clases diarias ({scheduleClasses.length})
-                        </h4>
-                        {scheduleClasses.length === 0 ? (
-                          <p className="text-xs text-slate-500">Sin clases registradas</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {scheduleClasses.map((cls) => (
+                            {scheduleClasses.slice(0, 3).map((cls) => (
                               <div
                                 key={cls.id}
                                 className="flex items-center justify-between rounded-lg bg-white p-2"
@@ -241,7 +298,10 @@ export default async function StudentsBySchedulePage() {
                                     {cls.student?.fullName || cls.attendeeName}
                                   </p>
                                   <p className="text-xs text-slate-600">
-                                    {cls.classDate.toLocaleDateString("es-CL")}
+                                    {cls.classDate.toLocaleDateString("es-CL", {
+                                      day: "numeric",
+                                      month: "short",
+                                    })}
                                   </p>
                                 </div>
                                 <span className="text-xs font-semibold text-slate-600">

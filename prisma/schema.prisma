@@ -45,6 +45,7 @@ model Student {
   notes            String?          // Observaciones
   photoUrl         String?          // URL de la foto del alumno
   isActive         Boolean          @default(true)  // Alumno activo/inactivo
+  scheduleId       String?          // Horario asignado al alumno
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

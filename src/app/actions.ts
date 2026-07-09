@@ -230,6 +230,7 @@ export async function updateStudentAction(
         emergencyPhone: normalizeString(formData.get("emergencyPhone")),
         notes: normalizeString(formData.get("notes")),
         photoUrl: normalizeString(formData.get("photoUrl")),
+        scheduleId: normalizeString(formData.get("scheduleId")),
         isActive: formData.get("isActive") !== "false",
       },
     });

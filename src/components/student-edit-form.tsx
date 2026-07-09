@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { updateStudentAction } from "@/app/actions";
 
+type Schedule = {
+  id: string;
+  discipline: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  blockName: string;
+};
+
 type Student = {
   id: string;
   fullName: string;
@@ -18,6 +27,7 @@ type Student = {
   notes: string | null;
   photoUrl: string | null;
   isActive: boolean;
+  scheduleId: string | null;
 };
 
 export function StudentEditForm({ 
@@ -32,6 +42,21 @@ export function StudentEditForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(student.photoUrl);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+
+  useEffect(() => {
+    loadSchedules();
+  }, []);
+
+  const loadSchedules = async () => {
+    try {
+      const res = await fetch("/api/schedules");
+      const data = await res.json();
+      setSchedules(data);
+    } catch (error) {
+      console.error("Error loading schedules:", error);
+    }
+  };
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -152,6 +177,24 @@ export function StudentEditForm({
             defaultValue={student.whatsapp ?? ""}
             className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-semibold text-slate-700">
+            Horario asignado (opcional)
+          </label>
+          <select
+            name="scheduleId"
+            defaultValue={student.scheduleId || ""}
+            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+          >
+            <option value="">Sin horario asignado</option>
+            {schedules.map((schedule) => (
+              <option key={schedule.id} value={schedule.id}>
+                {schedule.discipline} - {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="sm:col-span-2">
