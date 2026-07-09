@@ -7,12 +7,13 @@ import { logoutAction } from "@/app/login/actions";
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: Promise<{ q?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const query = searchParams.q || "";
+  const params = await searchParams;
+  const query = params.q || "";
   
   const students = await prisma.student.findMany({
     where: query
