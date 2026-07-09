@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
-import { StudentSearch } from "@/components/student-search";
 
 export default async function StudentsPage({
   searchParams,
@@ -93,15 +92,38 @@ export default async function StudentsPage({
             )}
           </div>
 
-          <StudentSearch initialQuery={query} />
+          {/* Formulario de búsqueda simple */}
+          <form action="/alumnos" method="GET" className="mb-6">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                name="q"
+                defaultValue={query}
+                placeholder="Buscar por nombre, RUT, email o WhatsApp..."
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Buscar
+              </button>
+              {query && (
+                <Link
+                  href="/alumnos"
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Limpiar
+                </Link>
+              )}
+            </div>
+          </form>
 
-          <details className="mt-6">
-            <summary className="cursor-pointer rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-              Ver lista de alumnos ({students.length})
-            </summary>
-            <div className="mt-4 grid gap-4">
+          <div className="grid gap-4">
             {students.length === 0 ? (
-              <p className="text-center text-sm text-slate-600">No se encontraron alumnos.</p>
+              <p className="text-center text-sm text-slate-600">
+                {query ? "No se encontraron alumnos con ese criterio." : "No se encontraron alumnos."}
+              </p>
             ) : (
               students.map((student) => (
                 <article
@@ -156,7 +178,6 @@ export default async function StudentsPage({
               ))
             )}
           </div>
-        </details>
         </section>
       </div>
     </main>
