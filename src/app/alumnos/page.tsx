@@ -4,11 +4,40 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
 
-export default async function StudentsPage() {
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+export default async function StudentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; letter?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const params = await searchParams;
+  const query = params.q || "";
+  const selectedLetter = params.letter || "";
+
+  // Construir el filtro
+  const whereClause: any = {};
+  
+  if (query) {
+    whereClause.OR = [
+      { fullName: { contains: query } },
+      { rut: { contains: query } },
+      { email: { contains: query } },
+      { whatsapp: { contains: query } },
+    ];
+  }
+
+  if (selectedLetter) {
+    whereClause.fullName = {
+      startsWith: selectedLetter,
+    };
+  }
+
   const students = await prisma.student.findMany({
+    where: whereClause,
     orderBy: {
       fullName: "asc",
     },
@@ -76,7 +105,69 @@ export default async function StudentsPage() {
             )}
           </div>
 
-          {/* Tabla simple de alumnos */}
+          {/* Filtro por letras del alfabeto */}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-slate-600 mb-2">Filtrar por letra:</p>
+            <div className="flex flex-wrap gap-1">
+              <Link
+                href="/alumnos"
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  !selectedLetter
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                Todos
+              </Link>
+              {ALPHABET.map((letter) => (
+                <Link
+                  key={letter}
+                  href={`/alumnos?letter=${letter}`}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    selectedLetter === letter
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  {letter}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Formulario de búsqueda */}
+          <form action="/alumnos" method="GET" className="mb-6">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                name="q"
+                defaultValue={query}
+                placeholder="Buscar por nombre, RUT, email o WhatsApp..."
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+              />
+              <input
+                type="hidden"
+                name="letter"
+                value={selectedLetter}
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Buscar
+              </button>
+              {(query || selectedLetter) && (
+                <Link
+                  href="/alumnos"
+                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Limpiar
+                </Link>
+              )}
+            </div>
+          </form>
+
+          {/* Tabla de alumnos */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
@@ -93,7 +184,7 @@ export default async function StudentsPage() {
                 {students.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-slate-600">
-                      No se encontraron alumnos.
+                      No se encontraron alumnos con ese criterio.
                     </td>
                   </tr>
                 ) : (
