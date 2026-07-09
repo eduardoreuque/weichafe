@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const DISCIPLINE_OPTIONS = [
@@ -14,13 +14,35 @@ const DISCIPLINE_OPTIONS = [
 ];
 
 type StudentOption = { id: string; fullName: string };
+type Schedule = { id: string; discipline: string; dayOfWeek: string; startTime: string; endTime: string; blockName: string };
 
 export function ClassForm({ students }: { students: StudentOption[] }) {
   const [state, setState] = useState<{ ok: boolean; error?: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    loadSchedules();
+  }, []);
+
+  const loadSchedules = async () => {
+    try {
+      const res = await fetch("/api/schedules");
+      const data = await res.json();
+      setSchedules(data);
+    } catch (error) {
+      console.error("Error loading schedules:", error);
+    }
+  };
+
+  const getFilteredSchedules = () => {
+    if (selectedDisciplines.length === 0) return [];
+    return schedules.filter((s) => selectedDisciplines.includes(s.discipline));
+  };
 
   const toggleDiscipline = (value: string) => {
     setSelectedDisciplines((prev) =>
@@ -43,6 +65,7 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
       studentId: formData.get("studentId"),
       attendeeName: formData.get("attendeeName"),
       disciplines: selectedDisciplines.join(","),
+      scheduleId: selectedScheduleId || undefined,
       classDate: formData.get("classDate"),
       amount: formData.get("amount"),
       paymentMethod: formData.get("paymentMethod"),
@@ -116,7 +139,10 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
                 <input
                   type="checkbox"
                   checked={selectedDisciplines.includes(opt.value)}
-                  onChange={() => toggleDiscipline(opt.value)}
+                  onChange={() => {
+                    toggleDiscipline(opt.value);
+                    setSelectedScheduleId("");
+                  }}
                   className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
                 {opt.label}
@@ -124,6 +150,26 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
             ))}
           </div>
         </fieldset>
+
+        {selectedDisciplines.length > 0 && getFilteredSchedules().length > 0 && (
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">
+              Horario de clase (opcional)
+            </label>
+            <select
+              value={selectedScheduleId}
+              onChange={(e) => setSelectedScheduleId(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="">Seleccionar horario</option>
+              {getFilteredSchedules().map((schedule) => (
+                <option key={schedule.id} value={schedule.id}>
+                  {schedule.discipline} - {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <label className="text-xs text-slate-600">
           Fecha de clase *

@@ -3,6 +3,10 @@ import { revalidatePath } from "next/cache";
 import { Discipline, MonthlyStatus, PaymentMethod, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+const PAYMENT_SCHEDULES_FILE = join(process.cwd(), "public", "payment-schedules.json");
 
 const disciplines = new Set<Discipline>([
   "MMA",
@@ -100,8 +104,22 @@ export async function POST(request: Request) {
     student: { connect: { id: studentId } },
   };
 
+  const scheduleId = normalizeString(body.scheduleId);
+
   try {
     const created = await prisma.monthlyPayment.create({ data, include: { student: true } });
+
+    // Guardar relación con horario si existe
+    if (scheduleId) {
+      try {
+        const fileData = readFileSync(PAYMENT_SCHEDULES_FILE, "utf-8");
+        const paymentSchedules = JSON.parse(fileData);
+        paymentSchedules[created.id] = scheduleId;
+        writeFileSync(PAYMENT_SCHEDULES_FILE, JSON.stringify(paymentSchedules, null, 2));
+      } catch (error) {
+        console.error("Error saving payment schedule:", error);
+      }
+    }
 
     if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
       await prisma.receipt.create({

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const DISCIPLINE_OPTIONS = [
@@ -14,12 +14,34 @@ const DISCIPLINE_OPTIONS = [
 ];
 
 type StudentOption = { id: string; fullName: string };
+type Schedule = { id: string; discipline: string; dayOfWeek: string; startTime: string; endTime: string; blockName: string };
 
 export function PaymentForm({ students }: { students: StudentOption[] }) {
   const [state, setState] = useState<{ ok: boolean; error?: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedDiscipline, setSelectedDiscipline] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    loadSchedules();
+  }, []);
+
+  const loadSchedules = async () => {
+    try {
+      const res = await fetch("/api/schedules");
+      const data = await res.json();
+      setSchedules(data);
+    } catch (error) {
+      console.error("Error loading schedules:", error);
+    }
+  };
+
+  const getFilteredSchedules = () => {
+    if (!selectedDiscipline) return [];
+    return schedules.filter((s) => s.discipline === selectedDiscipline);
+  };
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,6 +58,7 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
         body: JSON.stringify({
           studentId: formData.get("studentId"),
           discipline: formData.get("discipline"),
+          scheduleId: formData.get("scheduleId") || undefined,
           monthCovered: formData.get("monthCovered"),
           amount: formData.get("amount"),
           status: formData.get("status"),
@@ -95,6 +118,7 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
         <select
           name="discipline"
           required
+          onChange={(e) => setSelectedDiscipline(e.target.value)}
           className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
         >
           <option value="">Disciplina *</option>
@@ -104,6 +128,20 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
             </option>
           ))}
         </select>
+
+        {selectedDiscipline && getFilteredSchedules().length > 0 && (
+          <select
+            name="scheduleId"
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+          >
+            <option value="">Horario (opcional)</option>
+            {getFilteredSchedules().map((schedule) => (
+              <option key={schedule.id} value={schedule.id}>
+                {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
+              </option>
+            ))}
+          </select>
+        )}
 
         <label className="text-xs text-slate-600">
           Mes que cubre *
