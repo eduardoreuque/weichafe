@@ -4,28 +4,11 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
 
-export default async function StudentsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>;
-}) {
+export default async function StudentsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const params = await searchParams;
-  const query = params.q || "";
-  
   const students = await prisma.student.findMany({
-    where: query
-      ? {
-          OR: [
-            { fullName: { contains: query } },
-            { rut: { contains: query } },
-            { email: { contains: query } },
-            { whatsapp: { contains: query } },
-          ],
-        }
-      : undefined,
     orderBy: {
       fullName: "asc",
     },
@@ -93,91 +76,74 @@ export default async function StudentsPage({
             )}
           </div>
 
-          {/* Formulario de búsqueda simple */}
-          <form action="/alumnos" method="GET" className="mb-6">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                name="q"
-                defaultValue={query}
-                placeholder="Buscar por nombre, RUT, email o WhatsApp..."
-                className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-              />
-              <button
-                type="submit"
-                className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
-                Buscar
-              </button>
-              {query && (
-                <Link
-                  href="/alumnos"
-                  className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Limpiar
-                </Link>
-              )}
-            </div>
-          </form>
-
-          <div className="grid gap-4">
-            {students.length === 0 ? (
-              <p className="text-center text-sm text-slate-600">
-                {query ? "No se encontraron alumnos con ese criterio." : "No se encontraron alumnos."}
-              </p>
-            ) : (
-              students.map((student) => (
-                <article
-                  key={student.id}
-                  className={`rounded-2xl border ${student.isActive ? "border-slate-200" : "border-amber-200 bg-amber-50/50"} bg-white p-4`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      {student.photoUrl ? (
-                        <img
-                          src={student.photoUrl}
-                          alt={student.fullName}
-                          width={64}
-                          height={64}
-                          className="rounded-full border-2 border-slate-200 object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-xl font-bold text-slate-500">
-                          {student.fullName.charAt(0)}
-                        </div>
-                      )}
-                      <div>
-                        <h3 className="text-lg font-bold flex items-center gap-2">
-                          {student.fullName}
-                          {!student.isActive && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                              Inactivo
-                            </span>
+          {/* Tabla simple de alumnos */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-4 py-3 font-semibold text-slate-700">Nombre</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">RUT</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">Email</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">WhatsApp</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">Estado</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {students.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-600">
+                      No se encontraron alumnos.
+                    </td>
+                  </tr>
+                ) : (
+                  students.map((student) => (
+                    <tr key={student.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {student.photoUrl ? (
+                            <img
+                              src={student.photoUrl}
+                              alt={student.fullName}
+                              width={40}
+                              height={40}
+                              className="rounded-full border-2 border-slate-200 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-500">
+                              {student.fullName.charAt(0)}
+                            </div>
                           )}
-                        </h3>
-                        <p className="text-sm text-slate-600">
-                          {student.rut && <span className="mr-3">RUT: {student.rut}</span>}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          {student.email ?? "Sin email"}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          WhatsApp: {student.whatsapp ?? "-"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/alumnos/${student.id}`}
-                        className="rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                      >
-                        Ver/Editar
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              ))
-            )}
+                          <span className="font-medium text-slate-900">{student.fullName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{student.rut || "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">{student.email || "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">{student.whatsapp || "-"}</td>
+                      <td className="px-4 py-3">
+                        {student.isActive ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                            Inactivo
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/alumnos/${student.id}`}
+                          className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                        >
+                          Ver/Editar
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>

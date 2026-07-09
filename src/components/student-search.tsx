@@ -1,1 +1,1 @@
-// Componente eliminado - La búsqueda ahora se hace directamente en la página con un formulario HTML simple
+// Componente eliminado - La búsqueda se removió temporalmente
