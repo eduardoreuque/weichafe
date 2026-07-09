@@ -22,6 +22,7 @@ export default async function StudentsPage({
             { fullName: { contains: query } },
             { rut: { contains: query } },
             { email: { contains: query } },
+            { whatsapp: { contains: query } },
           ],
         }
       : undefined,
