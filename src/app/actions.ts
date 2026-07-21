@@ -53,8 +53,10 @@ export async function createStudentAction(
   if (!fullName) return { ok: false, error: "El nombre completo es requerido" };
   if (!birthDateRaw) return { ok: false, error: "La fecha de nacimiento es requerida" };
 
+  const scheduleId = normalizeString(formData.get("scheduleId"));
+
   try {
-    await prisma.student.create({
+    const student = await prisma.student.create({
       data: {
         fullName,
         birthDate: new Date(birthDateRaw),
@@ -67,10 +69,28 @@ export async function createStudentAction(
         emergencyPhone: normalizeString(formData.get("emergencyPhone")),
         notes: normalizeString(formData.get("notes")),
         photoUrl: normalizeString(formData.get("photoUrl")),
+        scheduleId,
         isActive: formData.get("isActive") !== "false",
       },
     });
+
+    // Sincronizar JSON de horarios del alumno
+    const { readFileSync, writeFileSync } = await import("fs");
+    const { join } = await import("path");
+    const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
+    try {
+      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+      const studentSchedules = JSON.parse(data);
+      if (scheduleId) {
+        studentSchedules[student.id] = [scheduleId];
+      }
+      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+    } catch (error) {
+      console.error("Error updating student schedules JSON:", error);
+    }
+
     revalidatePath("/");
+    revalidatePath("/alumnos");
     return { ok: true };
   } catch {
     return { ok: false, error: "No se pudo guardar el alumno. Intenta nuevamente." };
@@ -215,6 +235,8 @@ export async function updateStudentAction(
   if (!fullName) return { ok: false, error: "El nombre completo es requerido" };
   if (!birthDateRaw) return { ok: false, error: "La fecha de nacimiento es requerida" };
 
+  const scheduleId = normalizeString(formData.get("scheduleId"));
+
   try {
     await prisma.student.update({
       where: { id: studentId },
@@ -230,10 +252,33 @@ export async function updateStudentAction(
         emergencyPhone: normalizeString(formData.get("emergencyPhone")),
         notes: normalizeString(formData.get("notes")),
         photoUrl: normalizeString(formData.get("photoUrl")),
-        scheduleId: normalizeString(formData.get("scheduleId")),
+        scheduleId,
         isActive: formData.get("isActive") !== "false",
       },
     });
+
+    // Sincronizar JSON de horarios del alumno
+    const { readFileSync, writeFileSync } = await import("fs");
+    const { join } = await import("path");
+    const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
+    try {
+      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+      const studentSchedules = JSON.parse(data);
+      if (scheduleId) {
+        // Si tiene horario, asegurar que esté en el array
+        const current = studentSchedules[studentId] || [];
+        if (!current.includes(scheduleId)) {
+          studentSchedules[studentId] = [scheduleId];
+        }
+      } else {
+        // Si no tiene horario, limpiar
+        delete studentSchedules[studentId];
+      }
+      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+    } catch (error) {
+      console.error("Error updating student schedules JSON:", error);
+    }
+
     revalidatePath("/");
     revalidatePath("/alumnos");
     return { ok: true };
