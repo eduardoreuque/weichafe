@@ -124,8 +124,17 @@ export default async function StudentEditPage({
                     src={student.photoUrl}
                     alt={student.fullName}
                     className="h-48 w-48 rounded-full border-4 border-slate-200 object-cover"
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      img.style.display = 'none';
+                      const fallback = img.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.classList.remove('hidden');
+                    }}
                   />
-                  <p className="text-xs text-slate-600 break-all">{student.photoUrl}</p>
+                  <div className="hidden flex h-48 w-48 items-center justify-center rounded-full bg-slate-200 text-4xl font-bold text-slate-500">
+                    {student.fullName.charAt(0)}
+                  </div>
+                  <p className="text-xs text-slate-600">Ruta: {student.photoUrl}</p>
                 </div>
               ) : (
                 <div className="flex h-32 w-32 items-center justify-center rounded-full bg-slate-200 text-4xl font-bold text-slate-500">
@@ -144,13 +153,15 @@ export default async function StudentEditPage({
                     <li key={payment.id} className="rounded-lg border border-slate-200 bg-white p-2">
                       <p className="font-medium">{payment.discipline}</p>
                       <p className="text-xs text-slate-600">${payment.amount.toLocaleString("es-CL")}</p>
-                      {payment.receipt && (
+                      {payment.receipt ? (
                         <Link
                           href={`/comprobantes/${payment.receipt.id}`}
                           className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
                         >
                           Ver comprobante
                         </Link>
+                      ) : (
+                        <span className="text-xs text-slate-500">Sin comprobante</span>
                       )}
                     </li>
                   ))}

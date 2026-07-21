@@ -56,14 +56,32 @@ export default async function ReceiptPage({ params }: Props) {
             <span className="font-semibold">Monto:</span> ${receipt.amount.toLocaleString("es-CL")}
           </p>
           {receipt.monthlyPayment ? (
-            <p>
-              <span className="font-semibold">Disciplina:</span> {disciplineLabel(receipt.monthlyPayment.discipline)}
-            </p>
+            <>
+              <p>
+                <span className="font-semibold">Disciplina:</span> {disciplineLabel(receipt.monthlyPayment.discipline)}
+              </p>
+              <p>
+                <span className="font-semibold">Mes pagado:</span>{" "}
+                {toDateLabel(receipt.monthlyPayment.monthCovered)}
+              </p>
+              <p>
+                <span className="font-semibold">Fecha de pago:</span>{" "}
+                {receipt.monthlyPayment.paidAt
+                  ? toDateLabel(receipt.monthlyPayment.paidAt)
+                  : "No registrada"}
+              </p>
+            </>
           ) : null}
           {receipt.dailyClassSale ? (
-            <p>
-              <span className="font-semibold">Clase:</span> {disciplineLabel(receipt.dailyClassSale.discipline)}
-            </p>
+            <>
+              <p>
+                <span className="font-semibold">Clase:</span> {disciplineLabel(receipt.dailyClassSale.discipline)}
+              </p>
+              <p>
+                <span className="font-semibold">Fecha de clase:</span>{" "}
+                {toDateLabel(receipt.dailyClassSale.classDate)}
+              </p>
+            </>
           ) : null}
         </div>
 
