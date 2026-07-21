@@ -103,6 +103,7 @@ export function StudentForm() {
       notes: formData.get("notes"),
       photoUrl: uploadedPhotoUrl,
       isActive: formData.get("isActive") === "on",
+      scheduleId: selectedSchedules.length > 0 ? selectedSchedules[0] : null,
       schedules: selectedSchedules,
     };
 
@@ -118,6 +119,9 @@ export function StudentForm() {
 
       if (result.ok) {
         setFormKey((k) => k + 1);
+        setSelectedSchedules([]);
+        setPhotoPreview(null);
+        setUploadedPhotoUrl(null);
         router.refresh();
       }
     } catch {

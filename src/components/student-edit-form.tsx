@@ -181,7 +181,7 @@ export function StudentEditForm({
 
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-semibold text-slate-700">
-            Horario asignado (opcional)
+            Horarios asignados (opcional)
           </label>
           <select
             name="scheduleId"
@@ -195,6 +195,9 @@ export function StudentEditForm({
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Selecciona el horario principal. El alumno puede asistir a múltiples horarios, pero este será su horario principal.
+          </p>
         </div>
 
         <div className="sm:col-span-2">
