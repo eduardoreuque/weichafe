@@ -115,17 +115,15 @@ export default async function StudentEditPage({
             </div>
           </div>
 
-          <div className="space-y-6">
+            <div className="space-y-6">
             <div className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
               <h3 className="mb-3 text-lg font-bold text-slate-900">Foto del Alumno</h3>
               {student.photoUrl ? (
                 <div className="space-y-3">
-                  <Image
+                  <img
                     src={student.photoUrl}
                     alt={student.fullName}
-                    width={200}
-                    height={200}
-                    className="rounded-full border-4 border-slate-200 object-cover"
+                    className="h-48 w-48 rounded-full border-4 border-slate-200 object-cover"
                   />
                   <p className="text-xs text-slate-600 break-all">{student.photoUrl}</p>
                 </div>
@@ -146,6 +144,14 @@ export default async function StudentEditPage({
                     <li key={payment.id} className="rounded-lg border border-slate-200 bg-white p-2">
                       <p className="font-medium">{payment.discipline}</p>
                       <p className="text-xs text-slate-600">${payment.amount.toLocaleString("es-CL")}</p>
+                      {payment.receipt && (
+                        <Link
+                          href={`/comprobantes/${payment.receipt.id}`}
+                          className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:underline"
+                        >
+                          Ver comprobante
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>
