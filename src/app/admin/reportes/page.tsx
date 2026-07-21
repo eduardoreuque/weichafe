@@ -476,10 +476,10 @@ export default function ReportesPage() {
                     <tr key={student.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
                         <Link
-                          href={`/alumnos/${student.id}`}
-                          className="font-medium text-blue-700 hover:text-blue-900 hover:underline"
+                          href={`/alumnos/${encodeURIComponent(student.id)}`}
+                          className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                         >
-                          {student.fullName}
+                          Ver/Editar
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{student.rut || "-"}</td>
