@@ -49,12 +49,18 @@ export default async function AdminPage() {
                 {session.name}{" "}
                 <span className={roleBadge(session.role)}>{roleLabel(session.role)}</span>
               </span>
-              <Link
-                href="/"
-                className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-              >
-                ← Volver al panel
-              </Link>
+          <Link
+            href="/admin/reportes"
+            className="rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+          >
+            📊 Reportes
+          </Link>
+          <Link
+            href="/"
+            className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            ← Volver al panel
+          </Link>
               <form action={logoutAction}>
                 <button
                   type="submit"

@@ -59,9 +59,15 @@ export async function POST(request: Request) {
       },
     });
 
-    // Guardar horarios seleccionados
+    // Guardar horarios seleccionados (tanto en JSON como scheduleId principal en DB)
     const schedules = Array.isArray(body.schedules) ? body.schedules : [];
     if (schedules.length > 0) {
+      // Guardar el primer horario como scheduleId principal en DB
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { scheduleId: schedules[0] },
+      });
+      // Guardar todos los horarios en JSON para multi-horario
       const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
       const studentSchedules = JSON.parse(data);
       studentSchedules[student.id] = schedules;

@@ -147,6 +147,12 @@ export default async function Home() {
               {session.role === "ADMIN" && (
                 <>
                   <Link
+                    href="/admin/reportes"
+                    className="rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    📊 Reportes
+                  </Link>
+                  <Link
                     href="/admin/horarios"
                     className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
                   >
