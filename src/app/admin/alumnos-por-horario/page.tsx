@@ -38,13 +38,22 @@ export default async function StudentsBySchedulePage() {
     const schedulesJson = JSON.parse(schedulesData);
     schedules = Object.values(schedulesJson).filter((s: any) => s.isActive !== false);
     schedules.sort((a: any, b: any) => {
-      const dayOrder = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "ABADO", "DOMINGO"];
+      const dayOrder = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
       const dayCompare = dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
       if (dayCompare !== 0) return dayCompare;
       return a.startTime.localeCompare(b.startTime);
     });
   } catch (error) {
     console.error("Error loading schedules:", error);
+  }
+
+  // Cargar horarios de alumnos
+  let studentSchedulesData: Record<string, string[]> = {};
+  try {
+    const studentSchedulesFile = readFileSync(join(process.cwd(), "public", "student-schedules.json"), "utf-8");
+    studentSchedulesData = JSON.parse(studentSchedulesFile);
+  } catch (error) {
+    console.error("Error loading student schedules:", error);
   }
 
   // Obtener todos los alumnos con horario asignado
@@ -56,15 +65,29 @@ export default async function StudentsBySchedulePage() {
     },
   });
 
-  // Agrupar alumnos por horario
+  // Agrupar alumnos por horario (tanto scheduleId principal como horarios del JSON)
   const studentsBySchedule: Record<string, typeof studentsWithSchedule> = {};
   studentsWithSchedule.forEach((student) => {
+    // Agregar por scheduleId principal
     if (student.scheduleId) {
       if (!studentsBySchedule[student.scheduleId]) {
         studentsBySchedule[student.scheduleId] = [];
       }
-      studentsBySchedule[student.scheduleId].push(student);
+      if (!studentsBySchedule[student.scheduleId].find(s => s.id === student.id)) {
+        studentsBySchedule[student.scheduleId].push(student);
+      }
     }
+    
+    // Agregar por horarios del JSON
+    const studentScheduleIds = studentSchedulesData[student.id] || [];
+    studentScheduleIds.forEach(scheduleId => {
+      if (!studentsBySchedule[scheduleId]) {
+        studentsBySchedule[scheduleId] = [];
+      }
+      if (!studentsBySchedule[scheduleId].find(s => s.id === student.id)) {
+        studentsBySchedule[scheduleId].push(student);
+      }
+    });
   });
 
   // Obtener todos los pagos con sus horarios

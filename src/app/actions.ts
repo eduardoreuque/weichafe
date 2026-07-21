@@ -115,6 +115,7 @@ export async function createMonthlyPaymentAction(
   const paidAtRaw = normalizeString(formData.get("paidAt"));
   const paymentMethodRaw = normalizeString(formData.get("paymentMethod")) as PaymentMethod | null;
   const disciplinesMulti = normalizeString(formData.get("disciplines"));
+  const notes = normalizeString(formData.get("notes"));
 
   const yearMonth = `${monthCoveredRaw}-01`;
   const paidAt = paidAtRaw ? new Date(paidAtRaw) : status === "PAGADO" ? new Date() : null;
@@ -127,7 +128,7 @@ export async function createMonthlyPaymentAction(
     monthCovered: new Date(yearMonth),
     paidAt,
     paymentMethod: paymentMethodRaw && paymentMethods.has(paymentMethodRaw) ? paymentMethodRaw : null,
-    notes: normalizeString(formData.get("notes")),
+    notes,
     student: { connect: { id: studentId } },
   };
 
