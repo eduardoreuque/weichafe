@@ -40,19 +40,22 @@ export default async function StudentEditPage({
       })
     : [];
 
-  // Obtener horarios del alumno
+  // Obtener horarios del alumno (solo en desarrollo)
   let studentSchedules: any[] = [];
-  try {
-    const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-    const allStudentSchedules = JSON.parse(data);
-    const scheduleIds = allStudentSchedules[id] || [];
-    
-    // Obtener detalles de los horarios
-    const schedulesData = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
-    const allSchedules = JSON.parse(schedulesData).schedules;
-    studentSchedules = allSchedules.filter((s: any) => scheduleIds.includes(s.id));
-  } catch (error) {
-    console.error("Error loading student schedules:", error);
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+      const allStudentSchedules = JSON.parse(data);
+      const scheduleIds = allStudentSchedules[id] || [];
+      
+      // Obtener detalles de los horarios
+      const schedulesData = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
+      const parsedSchedules = JSON.parse(schedulesData);
+      const allSchedules = Array.isArray(parsedSchedules) ? parsedSchedules : (parsedSchedules.schedules || []);
+      studentSchedules = allSchedules.filter((s: any) => scheduleIds.includes(s.id));
+    } catch (error) {
+      console.error("Error loading student schedules:", error);
+    }
   }
 
   if (!student) {
