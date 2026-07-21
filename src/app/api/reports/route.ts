@@ -158,6 +158,7 @@ export async function GET(request: NextRequest) {
           amount: p.amount,
           status: p.status,
           paidAt: p.paidAt ? p.paidAt.toISOString().split("T")[0] : null,
+          paymentMethod: p.paymentMethod || "-",
         })),
       };
     });
@@ -165,12 +166,60 @@ export async function GET(request: NextRequest) {
     // Resumen
     const resumen = {
       totalAlumnos: filteredStudents.length,
-      totalPagadoTotal: reportData.reduce((sum, s) => sum + s.totalPagado, 0),
-      totalPendienteTotal: reportData.reduce((sum, s) => sum + s.totalPendiente, 0),
-      alumnosAlDia: reportData.filter((s) => s.estadoPago === "AL_DIA").length,
-      alumnosConDeuda: reportData.filter((s) => s.estadoPago === "CON_DEUDA").length,
-      alumnosSinPagos: reportData.filter((s) => s.estadoPago === "SIN_PAGOS").length,
+      totalPagadoTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPagado, 0),
+      totalPendienteTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPendiente, 0),
+      alumnosAlDia: reportData.filter((s: any) => s.estadoPago === "AL_DIA").length,
+      alumnosConDeuda: reportData.filter((s: any) => s.estadoPago === "CON_DEUDA").length,
+      alumnosSinPagos: reportData.filter((s: any) => s.estadoPago === "SIN_PAGOS").length,
     };
+
+    // Pagos detallados por horario y disciplina
+    const pagosDetallados: any[] = [];
+    filteredStudents.forEach((student) => {
+      const studentScheduleIds = studentSchedulesData[student.id] || [];
+      const studentSchedules = studentScheduleIds
+        .map((sid: string) => schedulesById[sid])
+        .filter(Boolean);
+
+      student.monthlyPayments.forEach((payment) => {
+        // Si hay filtro de horario, solo incluir pagos de ese horario
+        if (scheduleId) {
+          const schedule = schedulesById[scheduleId];
+          if (payment.discipline !== schedule?.discipline) {
+            return;
+          }
+        }
+
+        // Si hay filtro de disciplina, solo incluir pagos de esa disciplina
+        if (discipline && payment.discipline !== discipline) {
+          return;
+        }
+
+        pagosDetallados.push({
+          studentId: student.id,
+          studentName: student.fullName,
+          rut: student.rut || "-",
+          whatsapp: student.whatsapp || "-",
+          email: student.email || "-",
+          district: student.district || "-",
+          scheduleId: studentScheduleIds[0] || student.scheduleId,
+          schedules: studentSchedules.map((s: any) => ({
+            discipline: s.discipline,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            blockName: s.blockName,
+          })),
+          paymentId: payment.id,
+          discipline: payment.discipline,
+          month: payment.monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" }),
+          amount: payment.amount,
+          status: payment.status,
+          paidAt: payment.paidAt ? payment.paidAt.toISOString().split("T")[0] : null,
+          paymentMethod: payment.paymentMethod || "-",
+        });
+      });
+    });
 
     return NextResponse.json({
       ok: true,
@@ -178,6 +227,7 @@ export async function GET(request: NextRequest) {
       resumen,
       schedules,
       disciplines: Array.from(new Set(schedules.map((s: any) => s.discipline))),
+      pagosDetallados,
     });
   } catch (error) {
     console.error("Error generating report:", error);

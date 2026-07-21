@@ -188,6 +188,32 @@ export default function ReportesPage() {
     URL.revokeObjectURL(url);
   };
 
+  const [pagosDetallados, setPagosDetallados] = useState<any[]>([]);
+  const [showPayments, setShowPayments] = useState(false);
+
+  const loadPaymentsDetail = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterSchedule) params.set("scheduleId", filterSchedule);
+      if (filterDiscipline) params.set("discipline", filterDiscipline);
+      if (filterPayment) params.set("paymentStatus", filterPayment);
+      if (!onlyActive) params.set("onlyActive", "false");
+
+      const res = await fetch(`/api/reports?${params.toString()}`);
+      const result = await res.json();
+
+      if (result.ok) {
+        setPagosDetallados(result.pagosDetallados || []);
+        setShowPayments(true);
+      }
+    } catch (error) {
+      console.error("Error loading payments detail:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const exportDetailedExcel = () => {
     // Crear CSV detallado con pagos individuales
     const headers = [
@@ -495,6 +521,69 @@ export default function ReportesPage() {
             <p className="mt-2 text-sm text-slate-500">
               Selecciona los filtros y haz clic en "Generar Reporte"
             </p>
+          </section>
+        )}
+
+        {/* Pagos detallados por horario y disciplina */}
+        {showPayments && pagosDetallados.length > 0 && (
+          <section className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-bold text-slate-900">
+                Pagos detallados ({pagosDetallados.length} registros)
+              </h2>
+              <button
+                onClick={exportDetailedExcel}
+                className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+              >
+                📥 Exportar detallado (con pagos)
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="px-4 py-3 font-semibold text-slate-700">Alumno</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">RUT</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">WhatsApp</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Comuna</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Disciplina</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Horario</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Mes Pagado</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Monto</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Estado</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Fecha Pago</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Forma de Pago</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {pagosDetallados.map((payment, idx) => (
+                    <tr key={payment.paymentId || idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-900">{payment.studentName}</td>
+                      <td className="px-4 py-3 text-slate-600">{payment.rut}</td>
+                      <td className="px-4 py-3 text-slate-600">{payment.whatsapp}</td>
+                      <td className="px-4 py-3 text-slate-600">{payment.district}</td>
+                      <td className="px-4 py-3 text-slate-600">{payment.discipline}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {payment.schedules.length > 0
+                          ? `${payment.schedules[0].discipline} ${payment.schedules[0].dayOfWeek} ${payment.schedules[0].startTime}-${payment.schedules[0].endTime}`
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{payment.month}</td>
+                      <td className="px-4 py-3 font-semibold text-emerald-700">
+                        ${payment.amount.toLocaleString("es-CL")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${payment.status === "PAGADO" ? "bg-emerald-100 text-emerald-700" : payment.status === "PENDIENTE" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}`}>
+                          {payment.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{payment.paidAt || "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">{payment.paymentMethod}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
       </div>
