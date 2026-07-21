@@ -224,7 +224,7 @@ export default async function StudentsPage({
                       </td>
                       <td className="px-4 py-3">
                         <Link
-                          href={`/alumnos/${student.id}`}
+                          href={`/alumnos/${encodeURIComponent(student.id)}`}
                           className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                         >
                           Ver/Editar
