@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Guardar horarios seleccionados (tanto en JSON como scheduleId principal en DB)
+    // Guardar horarios seleccionados (solo en desarrollo)
     const schedules = Array.isArray(body.schedules) ? body.schedules : [];
     if (schedules.length > 0) {
       // Guardar el primer horario como scheduleId principal en DB
@@ -67,11 +67,18 @@ export async function POST(request: Request) {
         where: { id: student.id },
         data: { scheduleId: schedules[0] },
       });
-      // Guardar todos los horarios en JSON para multi-horario
-      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-      const studentSchedules = JSON.parse(data);
-      studentSchedules[student.id] = schedules;
-      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+      
+      // Guardar todos los horarios en JSON solo en desarrollo
+      if (process.env.NODE_ENV !== "production") {
+        try {
+          const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+          const studentSchedules = JSON.parse(data);
+          studentSchedules[student.id] = schedules;
+          writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+        } catch (error) {
+          console.error("Error updating student schedules JSON:", error);
+        }
+      }
     }
 
     revalidatePath("/");
@@ -121,14 +128,16 @@ export async function DELETE(request: Request) {
       });
     });
 
-    // Eliminar horarios del alumno
-    try {
-      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-      const studentSchedules = JSON.parse(data);
-      delete studentSchedules[studentId];
-      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
-    } catch (error) {
-      console.error("Error deleting student schedules:", error);
+    // Eliminar horarios del alumno (solo en desarrollo)
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+        const studentSchedules = JSON.parse(data);
+        delete studentSchedules[studentId];
+        writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+      } catch (error) {
+        console.error("Error deleting student schedules:", error);
+      }
     }
 
     revalidatePath("/");

@@ -258,26 +258,28 @@ export async function updateStudentAction(
       },
     });
 
-    // Sincronizar JSON de horarios del alumno
-    const { readFileSync, writeFileSync } = await import("fs");
-    const { join } = await import("path");
-    const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
-    try {
-      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-      const studentSchedules = JSON.parse(data);
-      if (scheduleId) {
-        // Si tiene horario, asegurar que esté en el array
-        const current = studentSchedules[studentId] || [];
-        if (!current.includes(scheduleId)) {
-          studentSchedules[studentId] = [scheduleId];
+    // Sincronizar JSON de horarios del alumno (solo en desarrollo)
+    if (process.env.NODE_ENV !== "production") {
+      const { readFileSync, writeFileSync } = await import("fs");
+      const { join } = await import("path");
+      const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
+      try {
+        const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+        const studentSchedules = JSON.parse(data);
+        if (scheduleId) {
+          // Si tiene horario, asegurar que esté en el array
+          const current = studentSchedules[studentId] || [];
+          if (!current.includes(scheduleId)) {
+            studentSchedules[studentId] = [scheduleId];
+          }
+        } else {
+          // Si no tiene horario, limpiar
+          delete studentSchedules[studentId];
         }
-      } else {
-        // Si no tiene horario, limpiar
-        delete studentSchedules[studentId];
+        writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
+      } catch (error) {
+        console.error("Error updating student schedules JSON:", error);
       }
-      writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
-    } catch (error) {
-      console.error("Error updating student schedules JSON:", error);
     }
 
     revalidatePath("/");
