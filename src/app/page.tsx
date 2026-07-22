@@ -170,6 +170,12 @@ export default async function Home() {
                   >
                     Pagos por Horario
                   </Link>
+                  <Link
+                    href="/admin/pagos-por-fecha"
+                    className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                  >
+                    Pagos por Fecha
+                  </Link>
                 </>
               )}
               <div className="text-right text-sm">

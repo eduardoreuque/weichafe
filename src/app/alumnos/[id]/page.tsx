@@ -5,7 +5,6 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
 import { StudentEditForm } from "@/components/student-edit-form";
-import { readFileSync } from "fs";
 import { join } from "path";
 
 const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
@@ -29,6 +28,11 @@ export default async function StudentEditPage({
         where: { studentId: id },
         orderBy: { monthCovered: "desc" },
         take: 10,
+        include: {
+          receipt: {
+            select: { id: true },
+          },
+        },
       })
     : [];
 
@@ -44,6 +48,7 @@ export default async function StudentEditPage({
   let studentSchedules: any[] = [];
   if (process.env.NODE_ENV !== "production") {
     try {
+      const { readFileSync } = await import("fs");
       const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
       const allStudentSchedules = JSON.parse(data);
       const scheduleIds = allStudentSchedules[id] || [];
