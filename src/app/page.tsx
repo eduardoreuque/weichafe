@@ -314,12 +314,12 @@ export default async function Home() {
                   <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
                     <div className="flex items-start gap-4">
                       {student.photoUrl ? (
-                        <Image
+                        <img
                           src={student.photoUrl}
                           alt={student.fullName}
                           width={64}
                           height={64}
-                          className="rounded-full border-2 border-slate-200 object-cover"
+                          className="rounded-full border-2 border-slate-200 object-cover h-16 w-16"
                         />
                       ) : (
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-xl font-bold text-slate-500">

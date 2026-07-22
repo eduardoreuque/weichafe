@@ -42,6 +42,7 @@ export function StudentEditForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(student.photoUrl);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
 
   useEffect(() => {
@@ -76,8 +77,11 @@ export function StudentEditForm({
     setSuccess(null);
 
     try {
-      // Si hay una nueva foto, subirla primero
-      if (photoFile) {
+      // Si se marcó para eliminar la foto
+      if (removePhoto) {
+        formData.set("photoUrl", "");
+      } else if (photoFile) {
+        // Si hay una nueva foto, subirla primero
         const uploadFormData = new FormData();
         uploadFormData.append("file", photoFile);
         
@@ -254,14 +258,28 @@ export function StudentEditForm({
             onChange={handlePhotoChange}
             className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
-          {photoPreview && (
-            <div className="mt-2">
+          {photoPreview && !removePhoto && (
+            <div className="mt-2 flex flex-col items-start gap-2">
               <img
                 src={photoPreview}
                 alt="Preview"
                 className="h-32 w-32 rounded-full object-cover"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  setRemovePhoto(true);
+                  setPhotoPreview(null);
+                  setPhotoFile(null);
+                }}
+                className="rounded-lg bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+              >
+                Eliminar foto
+              </button>
             </div>
+          )}
+          {removePhoto && (
+            <p className="mt-2 text-xs text-amber-700">La foto será eliminada al guardar.</p>
           )}
         </div>
 
