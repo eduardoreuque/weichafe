@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "No se recibió ningún archivo" }, { status: 400 });
     }
 
-    // Validar tipo de archivo
+    // Validar tipo
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -24,16 +24,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validar tamaño (máximo 5MB)
-    const maxSize = 5 * 1024 * 1024;
+    // Validar tamaño (máximo 2MB - más pequeño para data URL)
+    const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { ok: false, error: "La imagen es muy grande. Máximo 5MB" },
+        { ok: false, error: "La imagen es muy grande. Máximo 2MB" },
         { status: 400 }
       );
     }
 
-    // Convertir a base64 data URL
+    // Convertir a base64 (data URL) - funciona en todos los entornos
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64 = buffer.toString("base64");
     const dataUrl = `data:${file.type};base64,${base64}`;
