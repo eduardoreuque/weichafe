@@ -11,69 +11,142 @@ on:
 jobs:
   deploy-and-teardown:
     runs-on: ubuntu-latest
+
     env:
       EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Start EC2 instance
-        id: start
+      - name: Validate variables
         run: |
-          aws ec2 start-instances --instance-ids "$EC2_INSTANCE_ID"
-          aws ec2 wait instance-running --instance-ids "$EC2_INSTANCE_ID"
-          EC2_IP=$(aws ec2 describe-instances --instance-ids "$EC2_INSTANCE_ID" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
-          echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
+          if [ -z "$EC2_INSTANCE_ID" ]; then
+            echo "EC2_INSTANCE_ID secret not set" >&2
+            exit 1
+          fi
 
-      - name: Write SSH key
-        run: |
           if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "SSH_PRIVATE_KEY secret not set" >&2
             exit 1
           fi
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > deploy_key.pem
-          chmod 600 deploy_key.pem
-          echo "SSH_KEY=./deploy_key.pem" >> $GITHUB_ENV
 
-      - name: Run deploy script (build + scp + service)
+      - name: Start EC2 instance
+        run: |
+          aws ec2 start-instances \
+            --instance-ids "$EC2_INSTANCE_ID"
+
+          aws ec2 wait instance-running \
+            --instance-ids "$EC2_INSTANCE_ID"
+
+          EC2_IP=$(aws ec2 describe-instances \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text)
+
+          if [ -z "$EC2_IP" ] || [ "$EC2_IP" = "None" ]; then
+            echo "No fue posible obtener la IP pública de EC2" >&2
+            exit 1
+          fi
+
+          echo "EC2_IP=$EC2_IP" >> "$GITHUB_ENV"
+          echo "EC2 iniciada en $EC2_IP"
+
+      - name: Write SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$SSH_PRIVATE_KEY" > deploy_key.pem
+          chmod 600 deploy_key.pem
+          echo "SSH_KEY=$GITHUB_WORKSPACE/deploy_key.pem" >> "$GITHUB_ENV"
+
+      - name: Wait for SSH
+        env:
+          EC2_HOST: ${{ env.EC2_IP }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if nc -z "$EC2_HOST" 22; then
+              echo "SSH disponible"
+              exit 0
+            fi
+
+            echo "Esperando SSH, intento $attempt/30"
+            sleep 5
+          done
+
+          echo "SSH no quedó disponible" >&2
+          exit 1
+
+      - name: Run deploy script
         env:
           EC2_HOST: ${{ env.EC2_IP }}
           SSH_KEY: ${{ env.SSH_KEY }}
         run: |
-          chmod +x scripts/deploy-ec2.sh || true
+          chmod +x scripts/deploy-ec2.sh
           ./scripts/deploy-ec2.sh
 
       - name: Healthcheck
+        env:
+          EC2_IP: ${{ env.EC2_IP }}
         run: |
-          IP=${{ env.EC2_IP }}
-          for i in $(seq 1 12); do
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "http://$IP/login" || true)
-            echo "Attempt $i -> HTTP $code"
+          for attempt in $(seq 1 24); do
+            code=$(curl \
+              --connect-timeout 5 \
+              --max-time 10 \
+              -sS \
+              -o /dev/null \
+              -w "%{http_code}" \
+              "http://$EC2_IP/login" || true)
+
+            echo "Intento $attempt -> HTTP $code"
+
             if [ "$code" = "200" ]; then
-              echo "healthy"
+              echo "Aplicación saludable"
               exit 0
             fi
+
             sleep 5
           done
+
           echo "Healthcheck failed" >&2
           exit 1
 
-      - name: Keep instance alive for configured minutes
-        if: ${{ github.event.inputs.keep_alive_minutes != '0' }}
+      - name: Keep instance alive
+        if: ${{ success() && github.event.inputs.keep_alive_minutes != '0' }}
+        env:
+          KEEP_ALIVE_MINUTES: ${{ github.event.inputs.keep_alive_minutes }}
         run: |
-          minutes=${{ github.event.inputs.keep_alive_minutes }}
-          echo "Keeping instance alive for $minutes minutes"
-          sleep $((minutes * 60))
+          if ! [[ "$KEEP_ALIVE_MINUTES" =~ ^[0-9]+$ ]]; then
+            echo "keep_alive_minutes debe ser un número entero" >&2
+            exit 1
+          fi
+
+          echo "Manteniendo instancia activa durante $KEEP_ALIVE_MINUTES minutos"
+          sleep $((KEEP_ALIVE_MINUTES * 60))
 
       - name: Stop EC2 instance
-        if: ${{ github.event.inputs.keep_alive_minutes != '0' }}
+        if: ${{ always() && github.event.inputs.keep_alive_minutes != '0' }}
         run: |
-          aws ec2 stop-instances --instance-ids "$EC2_INSTANCE_ID"
-          aws ec2 wait instance-stopped --instance-ids "$EC2_INSTANCE_ID"
+          aws ec2 stop-instances \
+            --instance-ids "$EC2_INSTANCE_ID"
+
+          aws ec2 wait instance-stopped \
+            --instance-ids "$EC2_INSTANCE_ID"
+
+          echo "Instancia detenida"
