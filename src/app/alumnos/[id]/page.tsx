@@ -92,26 +92,16 @@ export default async function StudentEditPage({
               <h3 className="mb-3 text-lg font-bold text-slate-900">Foto del Alumno</h3>
               {student.photoUrl ? (
                 <div className="space-y-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={student.photoUrl}
                     alt={student.fullName}
                     className="h-48 w-48 rounded-full border-4 border-slate-200 object-cover"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = "none";
-                      const fallback = img.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.classList.remove("hidden");
-                    }}
                   />
-                  <div className="hidden flex h-48 w-48 items-center justify-center rounded-full bg-slate-200 text-4xl font-bold text-slate-500">
-                    {student.fullName.charAt(0)}
-                  </div>
                   <p className="text-xs text-slate-600 break-all">Foto guardada en base64</p>
                 </div>
               ) : (
                 <div className="flex h-32 w-32 items-center justify-center rounded-full bg-slate-200 text-4xl font-bold text-slate-500">
-                  {student.fullName.charAt(0)}
+                  {student.fullName ? student.fullName.charAt(0) : "?"}
                 </div>
               )}
             </div>
