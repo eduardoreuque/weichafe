@@ -102,7 +102,7 @@ jobs:
                 
                 # Aplicar migraciones
                 cd ~/weichafe-standalone
-                npx prisma migrate deploy --schema=./prisma/schema.prisma 2>/dev/null || echo "No hay migraciones pendientes"
+                npx prisma migrate deploy --schema=./prisma/schema.prisma
                 
                 # Configurar servicio systemd
                 printf "%s\n" \

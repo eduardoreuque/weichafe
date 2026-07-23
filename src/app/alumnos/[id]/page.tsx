@@ -42,9 +42,14 @@ export default async function StudentEditPage({
     take: 10,
   });
 
-  const schedules = await prisma.schedule.findMany({
-    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
-  });
+  let schedules: any[] = [];
+  try {
+    schedules = await prisma.schedule.findMany({
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+    });
+  } catch (error) {
+    console.error("Error loading schedules:", error);
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_5%_10%,#f8f7ef_0,#e9f2ff_35%,#f2e7db_75%,#e8eceb_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
