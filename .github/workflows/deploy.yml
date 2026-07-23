@@ -9,7 +9,7 @@ jobs:
   deploy:
     name: Build y deploy en EC2
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout codigo
@@ -21,8 +21,24 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next
+          key: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**/*.tsx', 'src/**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-next-
+
       - name: Instalar dependencias
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Generar cliente Prisma
         run: npx prisma generate
@@ -47,130 +63,69 @@ jobs:
 
       - name: Subir paquete al servidor
         run: |
-          scp -v -i ~/.ssh/weichafe-ec2 \
+          scp -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
+              -o Compression=yes \
               /tmp/weichafe-standalone.tar.gz \
               ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone.tar.gz
 
-      - name: Crear directorio de despliegue y uploads con sudo
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} \
-              'sudo mkdir -p ~/weichafe-standalone /var/weichafe/uploads && sudo chown -R ec2-user:ec2-user /var/weichafe'
-        continue-on-error: true
-
-      - name: Preservar uploads
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} \
-              'if [ -d /var/weichafe/uploads ]; then cp -r /var/weichafe/uploads /tmp/uploads.backup; fi'
-        continue-on-error: true
-
-      - name: Preservar base de datos existente
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} \
-              'if [ -f ~/weichafe-standalone/prisma/dev.db ]; then cp ~/weichafe-standalone/prisma/dev.db /tmp/dev.db.backup; fi'
-        continue-on-error: true
-
-      - name: Descomprimir paquete
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} \
-              'tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone'
-
-      - name: Restaurar uploads
+      - name: Deploy completo en EC2
         run: |
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} '
+                set -e
+                sudo mkdir -p ~/weichafe-standalone /var/weichafe/uploads
+                sudo chown -R ec2-user:ec2-user /var/weichafe
+                
+                # Preservar uploads y BD
+                if [ -d /var/weichafe/uploads ]; then cp -r /var/weichafe/uploads /tmp/uploads.backup; fi
+                if [ -f ~/weichafe-standalone/prisma/dev.db ]; then cp ~/weichafe-standalone/prisma/dev.db /tmp/dev.db.backup; fi
+                
+                # Descomprimir nuevo paquete
+                rm -rf ~/weichafe-standalone
+                mkdir -p ~/weichafe-standalone
+                tar xzf ~/weichafe-standalone.tar.gz -C ~/weichafe-standalone
+                
+                # Restaurar uploads y BD
                 if [ -d /tmp/uploads.backup ]; then
                   sudo rm -rf /var/weichafe/uploads
                   sudo mv /tmp/uploads.backup /var/weichafe/uploads
                   sudo chown -R ec2-user:ec2-user /var/weichafe
                 fi
-              '
-        continue-on-error: true
-
-      - name: Restaurar base de datos
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} '
                 if [ -f /tmp/dev.db.backup ]; then
                   cp /tmp/dev.db.backup ~/weichafe-standalone/prisma/dev.db
                   rm -f /tmp/dev.db.backup
                 fi
-              '
-        continue-on-error: true
-
-      - name: Instalar dependencias en servidor
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} '
-                cd ~/weichafe-standalone
-                if [ -f package.json ]; then
-                  npm ci --no-audit --no-fund 2>/dev/null || true
-                fi
-              '
-        continue-on-error: true
-
-      - name: Aplicar migraciones de Prisma
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} '
+                
+                # Aplicar migraciones
                 cd ~/weichafe-standalone
                 npx prisma migrate deploy --schema=./prisma/schema.prisma 2>/dev/null || echo "No hay migraciones pendientes"
-              '
-        continue-on-error: true
-
-      - name: Generar cliente Prisma
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} '
-                cd ~/weichafe-standalone
-                npx prisma generate --schema=./prisma/schema.prisma 2>/dev/null || true
-              '
-        continue-on-error: true
-
-      - name: Configurar servicio systemd
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} \
-              'printf "%s\n" \
-                "[Unit]" \
-                "Description=Weichafe Next Standalone" \
-                "After=network.target" \
-                "" \
-                "[Service]" \
-                "Type=simple" \
-                "User=ec2-user" \
-                "WorkingDirectory=/home/ec2-user/weichafe-standalone" \
-                "Environment=HOSTNAME=0.0.0.0" \
-                "Environment=PORT=3000" \
-                "Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db" \
-                "Environment=UPLOAD_DIR=/var/weichafe/uploads" \
-                "ExecStart=/usr/bin/node server.js" \
-                "Restart=always" \
-                "RestartSec=5" \
-                "" \
-                "[Install]" \
-                "WantedBy=multi-user.target" \
-                | sudo tee /etc/systemd/system/weichafe.service >/dev/null && sudo systemctl daemon-reload && sudo systemctl enable weichafe.service'
-
-      - name: Reiniciar servicio
-        run: |
-          ssh -i ~/.ssh/weichafe-ec2 \
-              -o StrictHostKeyChecking=no \
-              ec2-user@${{ secrets.EC2_HOST }} '
+                
+                # Configurar servicio systemd
+                printf "%s\n" \
+                  "[Unit]" \
+                  "Description=Weichafe Next Standalone" \
+                  "After=network.target" \
+                  "" \
+                  "[Service]" \
+                  "Type=simple" \
+                  "User=ec2-user" \
+                  "WorkingDirectory=/home/ec2-user/weichafe-standalone" \
+                  "Environment=HOSTNAME=0.0.0.0" \
+                  "Environment=PORT=3000" \
+                  "Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db" \
+                  "Environment=UPLOAD_DIR=/var/weichafe/uploads" \
+                  "ExecStart=/usr/bin/node server.js" \
+                  "Restart=always" \
+                  "RestartSec=5" \
+                  "" \
+                  "[Install]" \
+                  "WantedBy=multi-user.target" \
+                  | sudo tee /etc/systemd/system/weichafe.service >/dev/null
+                
+                sudo systemctl daemon-reload
+                sudo systemctl enable weichafe.service
                 sudo systemctl restart weichafe.service
                 sleep 5
                 sudo systemctl is-active weichafe.service
@@ -178,7 +133,7 @@ jobs:
 
       - name: Verificar que la app responde
         run: |
-          sleep 5
+          sleep 3
           ssh -i ~/.ssh/weichafe-ec2 \
               -o StrictHostKeyChecking=no \
               ec2-user@${{ secrets.EC2_HOST }} \
