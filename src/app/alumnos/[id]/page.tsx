@@ -42,6 +42,10 @@ export default async function StudentEditPage({
     take: 10,
   });
 
+  const schedules = await prisma.schedule.findMany({
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_5%_10%,#f8f7ef_0,#e9f2ff_35%,#f2e7db_75%,#e8eceb_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -105,6 +109,23 @@ export default async function StudentEditPage({
                 </div>
               )}
             </div>
+
+            {student.scheduleId && schedules && schedules.length > 0 && (() => {
+              const schedule = schedules.find(s => s.id === student.scheduleId);
+              if (!schedule) return null;
+              return (
+                <div className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
+                  <h3 className="mb-3 text-lg font-bold text-slate-900">Horario Asignado</h3>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-semibold text-emerald-900">{schedule.discipline}</p>
+                    <p className="text-xs text-emerald-700 mt-1">
+                      {schedule.dayOfWeek} • {schedule.startTime} - {schedule.endTime}
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-1">{schedule.blockName}</p>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h3 className="mb-2 font-bold text-slate-900">Últimos pagos</h3>

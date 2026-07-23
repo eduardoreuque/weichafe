@@ -284,6 +284,7 @@ export async function updateStudentAction(
 
     revalidatePath("/");
     revalidatePath("/alumnos");
+    revalidatePath(`/alumnos/${studentId}`);
     return { ok: true };
   } catch {
     return { ok: false, error: "No se pudo actualizar el alumno. Intenta nuevamente." };
