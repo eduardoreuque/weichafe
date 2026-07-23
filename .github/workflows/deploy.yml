@@ -42,6 +42,8 @@ jobs:
 
       - name: Generar cliente Prisma
         run: npx prisma generate
+        env:
+          DATABASE_URL: "file:/tmp/dummy-build.db"
 
       - name: Build Next.js standalone (sin tocar BD)
         run: npm run build
