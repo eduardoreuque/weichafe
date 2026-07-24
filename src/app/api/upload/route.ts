@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { randomUUID } from "crypto";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -24,21 +27,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validar tamaño (máximo 2MB - más pequeño para data URL)
-    const maxSize = 2 * 1024 * 1024;
+    // Validar tamaño (máximo 5MB)
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { ok: false, error: "La imagen es muy grande. Máximo 2MB" },
+        { ok: false, error: "La imagen es muy grande. Máximo 5MB" },
         { status: 400 }
       );
     }
 
-    // Convertir a base64 (data URL) - funciona en todos los entornos
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const base64 = buffer.toString("base64");
-    const dataUrl = `data:${file.type};base64,${base64}`;
+    // Guardar en disco: usar UPLOAD_DIR o crear directorio local
+    const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), "public", "uploads");
+    await mkdir(uploadDir, { recursive: true });
 
-    return NextResponse.json({ ok: true, url: dataUrl });
+    const ext = file.name.split(".").pop() || "jpg";
+    const filename = `${randomUUID()}.${ext}`;
+    const filepath = join(uploadDir, filename);
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(filepath, buffer);
+
+    // Devolver URL pública
+    const publicUrl = process.env.UPLOAD_DIR
+      ? `/uploads/${filename}`
+      : `/uploads/${filename}`;
+
+    return NextResponse.json({ ok: true, url: publicUrl });
   } catch (error) {
     console.error("Error uploading file:", error);
     return NextResponse.json(
