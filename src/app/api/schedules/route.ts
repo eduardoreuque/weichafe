@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-
-const SCHEDULES_FILE = join(process.cwd(), "public", "schedules.json");
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const data = readFileSync(SCHEDULES_FILE, "utf-8");
-    const schedules = JSON.parse(data);
-    return NextResponse.json(schedules.schedules);
+    const schedules = await prisma.schedule.findMany({
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+    });
+    return NextResponse.json(schedules);
   } catch (error) {
     console.error("Error reading schedules:", error);
     return NextResponse.json([], { status: 500 });
@@ -20,34 +18,37 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action, schedule } = body;
 
-    const data = readFileSync(SCHEDULES_FILE, "utf-8");
-    const schedulesData = JSON.parse(data);
-    let schedules = schedulesData.schedules;
-
     if (action === "create") {
-      const newSchedule = {
-        ...schedule,
-        id: schedule.id || `${schedule.discipline.toLowerCase()}-${Date.now()}`,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      schedules.push(newSchedule);
+      const newSchedule = await prisma.schedule.create({
+        data: {
+          discipline: schedule.discipline,
+          dayOfWeek: schedule.dayOfWeek,
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+          blockName: schedule.blockName,
+        },
+      });
+      return NextResponse.json({ success: true, schedule: newSchedule });
     } else if (action === "update") {
-      const index = schedules.findIndex((s: any) => s.id === schedule.id);
-      if (index !== -1) {
-        schedules[index] = {
-          ...schedules[index],
-          ...schedule,
-          updatedAt: new Date().toISOString(),
-        };
-      }
+      const updated = await prisma.schedule.update({
+        where: { id: schedule.id },
+        data: {
+          discipline: schedule.discipline,
+          dayOfWeek: schedule.dayOfWeek,
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+          blockName: schedule.blockName,
+        },
+      });
+      return NextResponse.json({ success: true, schedule: updated });
     } else if (action === "delete") {
-      schedules = schedules.filter((s: any) => s.id !== schedule.id);
+      await prisma.schedule.delete({
+        where: { id: schedule.id },
+      });
+      return NextResponse.json({ success: true });
     }
 
-    writeFileSync(SCHEDULES_FILE, JSON.stringify({ schedules }, null, 2));
-    return NextResponse.json({ success: true, schedules });
+    return NextResponse.json({ success: false, error: "Acción no válida" }, { status: 400 });
   } catch (error) {
     console.error("Error updating schedules:", error);
     return NextResponse.json({ success: false, error: "Error al guardar" }, { status: 500 });
