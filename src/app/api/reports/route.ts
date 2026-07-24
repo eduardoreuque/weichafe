@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { readFileSync } from "fs";
-import { join } from "path";
-
-const SCHEDULES_FILE = join(process.cwd(), "public", "schedules.json");
-
-function loadSchedules(): any[] {
-  try {
-    const data = readFileSync(SCHEDULES_FILE, "utf-8");
-    const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : parsed.schedules || [];
-  } catch {
-    return [];
-  }
-}
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -63,11 +49,26 @@ export async function GET(request: NextRequest) {
       orderBy: { fullName: "asc" },
     });
 
-    const schedules = loadSchedules();
+    // Cargar schedules desde BD (con fallback a JSON)
+    let schedulesArr: any[] = [];
+    try {
+      schedulesArr = await prisma.schedule.findMany({
+        orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+      });
+    } catch {
+      // Fallback a JSON si la tabla no existe
+      const { readFileSync } = await import("fs");
+      const { join } = await import("path");
+      try {
+        const raw = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
+        const parsed = JSON.parse(raw);
+        schedulesArr = Array.isArray(parsed) ? parsed : parsed.schedules || [];
+      } catch {}
+    }
 
     // Mapear schedules por ID
     const schedulesById: Record<string, any> = {};
-    schedules.forEach((s: any) => {
+    schedulesArr.forEach((s: any) => {
       schedulesById[s.id] = s;
     });
 
@@ -279,8 +280,8 @@ export async function GET(request: NextRequest) {
       ok: true,
       data: reportData,
       resumen,
-      schedules,
-      disciplines: Array.from(new Set(schedules.map((s: any) => s.discipline))),
+      schedules: schedulesArr,
+      disciplines: Array.from(new Set(schedulesArr.map((s: any) => s.discipline))),
       pagosDetallados,
     });
   } catch (error) {

@@ -596,7 +596,7 @@ export default function ReportesPage() {
                             {p.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-600 max-w-[150px] truncate" title={p.notes}>{p.notes || "-"}</td>
+                        <td className="px-4 py-3 text-slate-600 max-w-xs whitespace-normal break-words">{p.notes || "-"}</td>
                         <td className="px-4 py-3 text-slate-600">{p.receiptNumber || "-"}</td>
                       </tr>
                     ))}
@@ -640,7 +640,7 @@ export default function ReportesPage() {
                             <td className="px-4 py-3 text-slate-600">{sale.discipline}</td>
                             <td className="px-4 py-3 text-slate-600">{formatDate(sale.classDate)}</td>
                             <td className="px-4 py-3 font-semibold text-emerald-700">{formatCurrency(sale.amount)}</td>
-                            <td className="px-4 py-3 text-slate-600 max-w-[150px] truncate" title={sale.notes}>{sale.notes || "-"}</td>
+                            <td className="px-4 py-3 text-slate-600 max-w-xs whitespace-normal break-words">{sale.notes || "-"}</td>
                           </tr>
                         ))
                       )
