@@ -47,10 +47,8 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(filepath, buffer);
 
-    // Devolver URL pública
-    const publicUrl = process.env.UPLOAD_DIR
-      ? `/uploads/${filename}`
-      : `/uploads/${filename}`;
+    // Devolver URL pública via el endpoint de serve
+    const publicUrl = `/api/uploads/${filename}`;
 
     return NextResponse.json({ ok: true, url: publicUrl });
   } catch (error) {
