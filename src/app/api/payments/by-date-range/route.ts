@@ -18,22 +18,14 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Construir filtro de fecha para paidAt
+    // Construir filtro de fecha
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    // Obtener pagos mensuales en el rango de fecha de pago
-    const whereClause: any = {
-      paidAt: {
-        gte: start,
-        lte: end,
-      },
-      status: "PAGADO",
-    };
-
-    // Si hay búsqueda por nombre, filtrar estudiantes primero
+    // Filtro base de estudiantes (búsqueda por nombre)
+    const studentIdFilter: any = {};
     if (searchQuery.trim()) {
       const students = await prisma.student.findMany({
         where: {
@@ -41,9 +33,18 @@ export async function GET(request: Request) {
         },
         select: { id: true },
       });
-      const studentIds = students.map((s) => s.id);
-      whereClause.studentId = { in: studentIds };
+      studentIdFilter.studentId = { in: students.map((s) => s.id) };
     }
+
+    // Traer pagos cuya fecha de pago (paidAt) O fecha de registro (createdAt) caigan en el rango.
+    // Esto evita perder pagos PENDIENTE/SALTADO que no tienen paidAt pero sí fueron registrados en el rango.
+    const whereClause: any = {
+      ...studentIdFilter,
+      OR: [
+        { paidAt: { gte: start, lte: end } },
+        { paidAt: null, createdAt: { gte: start, lte: end } },
+      ],
+    };
 
     const payments = await prisma.monthlyPayment.findMany({
       where: whereClause,
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: {
-        paidAt: "desc",
+        createdAt: "desc",
       },
     });
 

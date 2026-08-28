@@ -39,14 +39,23 @@ export async function GET(request: NextRequest) {
           include: {
             receipt: { select: { id: true, receiptNumber: true } },
           },
-          take: 100,
         },
         dailyClassSales: {
           orderBy: { classDate: "desc" },
-          take: 50,
         },
       },
       orderBy: { fullName: "asc" },
+    });
+
+    // Ventas de clases diarias registradas sin alumno vinculado (nombre libre / "walk-in")
+    // Estas no aparecen bajo ningún Student, por eso se consultan y reportan aparte.
+    const orphanWhere: any = { studentId: null };
+    if (searchQuery.trim()) {
+      orphanWhere.attendeeName = { contains: searchQuery.trim() };
+    }
+    const orphanClassSales = await prisma.dailyClassSale.findMany({
+      where: orphanWhere,
+      orderBy: { classDate: "desc" },
     });
 
     // Cargar schedules desde BD (con fallback a JSON)
@@ -80,7 +89,7 @@ export async function GET(request: NextRequest) {
       return [];
     }
 
-    // Filtrar pagos por rango de fecha (paidAt)
+    // Filtrar pagos por rango de fecha (paidAt, o createdAt si no tiene fecha de pago registrada)
     function filterPaymentsByDateRange(payments: any[], start: string, end: string) {
       if (!start && !end) return payments;
       const startDateObj = start ? new Date(start) : null;
@@ -88,10 +97,9 @@ export async function GET(request: NextRequest) {
       if (endDateObj) endDateObj.setHours(23, 59, 59, 999);
 
       return payments.filter((p) => {
-        if (!p.paidAt) return false;
-        const paidAt = new Date(p.paidAt);
-        if (startDateObj && paidAt < startDateObj) return false;
-        if (endDateObj && paidAt > endDateObj) return false;
+        const referenceDate = p.paidAt ? new Date(p.paidAt) : new Date(p.createdAt);
+        if (startDateObj && referenceDate < startDateObj) return false;
+        if (endDateObj && referenceDate > endDateObj) return false;
         return true;
       });
     }
@@ -224,12 +232,35 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Filtrar y mapear ventas de clases sin alumno vinculado (mismos filtros de fecha/disciplina/horario)
+    let filteredOrphanClassSales = filterClassSalesByDateRange(orphanClassSales, startDate, endDate);
+    if (discipline) {
+      filteredOrphanClassSales = filteredOrphanClassSales.filter((s) =>
+        s.discipline.split(",").includes(discipline)
+      );
+    }
+    // Las ventas sin alumno no tienen horario asignado; si se filtra por horario específico, se excluyen.
+    if (scheduleId) {
+      filteredOrphanClassSales = [];
+    }
+    const clasesSinAlumno = filteredOrphanClassSales.map((s) => ({
+      id: s.id,
+      attendeeName: s.attendeeName || "Sin nombre",
+      discipline: s.discipline,
+      classDate: s.classDate.toISOString().split("T")[0],
+      amount: s.amount,
+      paymentMethod: s.paymentMethod,
+      notes: s.notes || "",
+    }));
+
     // Resumen general (sin filtro de fecha para mantener totales históricos)
     const resumen = {
       totalAlumnos: filteredStudents.length,
       totalPagadoTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPagado, 0),
       totalPendienteTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPendiente, 0),
-      totalClasesDiarias: reportData.reduce((sum: number, s: any) => sum + s.classSalesCount, 0),
+      totalClasesDiarias:
+        reportData.reduce((sum: number, s: any) => sum + s.classSalesCount, 0) +
+        clasesSinAlumno.length,
       alumnosAlDia: reportData.filter((s: any) => s.estadoPago === "AL_DIA").length,
       alumnosConDeuda: reportData.filter((s: any) => s.estadoPago === "CON_DEUDA").length,
       alumnosSinPagos: reportData.filter((s: any) => s.estadoPago === "SIN_PAGOS").length,
@@ -283,6 +314,7 @@ export async function GET(request: NextRequest) {
       schedules: schedulesArr,
       disciplines: Array.from(new Set(schedulesArr.map((s: any) => s.discipline))),
       pagosDetallados,
+      clasesSinAlumno,
     });
   } catch (error) {
     console.error("Error generating report:", error);

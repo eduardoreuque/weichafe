@@ -37,6 +37,16 @@ interface ClassSaleInfo {
   notes: string;
 }
 
+interface OrphanClassSaleInfo {
+  id: string;
+  attendeeName: string;
+  discipline: string;
+  classDate: string;
+  amount: number;
+  paymentMethod: string;
+  notes: string;
+}
+
 interface ScheduleInfo {
   discipline: string;
   dayOfWeek: string;
@@ -115,6 +125,7 @@ export default function ReportesPage() {
   const [data, setData] = useState<StudentReport[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [pagosDetallados, setPagosDetallados] = useState<any[]>([]);
+  const [clasesSinAlumno, setClasesSinAlumno] = useState<OrphanClassSaleInfo[]>([]);
 
   // Filtros
   const [filterSchedule, setFilterSchedule] = useState("");
@@ -147,6 +158,7 @@ export default function ReportesPage() {
         setResumen(result.resumen);
         setSchedules(result.schedules || []);
         setDisciplines(result.disciplines || []);
+        setClasesSinAlumno(result.clasesSinAlumno || []);
         // Armar pagos detallados desde la data
         const detallados: any[] = [];
         result.data.forEach((student: StudentReport) => {
@@ -233,6 +245,12 @@ export default function ReportesPage() {
             c.amount.toString(), c.paymentMethod, c.notes,
           ]);
         });
+      });
+      clasesSinAlumno.forEach((c) => {
+        rows.push([
+          `${c.attendeeName} (sin alumno vinculado)`, "-", c.discipline, formatDate(c.classDate),
+          c.amount.toString(), c.paymentMethod, c.notes,
+        ]);
       });
     } else {
       headers = ["Nombre", "RUT", "WhatsApp", "Edad", "Comuna", "Disciplinas", "Total Pagado", "Total Pendiente", "Estado"];
@@ -613,7 +631,7 @@ export default function ReportesPage() {
             <h2 className="mb-4 text-xl font-bold text-slate-900">
               Clases Diarias
             </h2>
-            {data.length === 0 ? (
+            {data.length === 0 && clasesSinAlumno.length === 0 ? (
               <p className="text-center text-slate-600">No se encontraron alumnos con los filtros seleccionados.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -645,9 +663,25 @@ export default function ReportesPage() {
                         ))
                       )
                     )}
+                    {clasesSinAlumno.map((sale) => (
+                      <tr key={sale.id} className="hover:bg-slate-50 bg-amber-50/40">
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {sale.attendeeName}{" "}
+                          <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            Sin alumno vinculado
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">-</td>
+                        <td className="px-4 py-3 text-slate-600">{sale.paymentMethod}</td>
+                        <td className="px-4 py-3 text-slate-600">{sale.discipline}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatDate(sale.classDate)}</td>
+                        <td className="px-4 py-3 font-semibold text-emerald-700">{formatCurrency(sale.amount)}</td>
+                        <td className="px-4 py-3 text-slate-600 max-w-xs whitespace-normal break-words">{sale.notes || "-"}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-                {data.every((s) => s.dailyClassSales.length === 0) && (
+                {data.every((s) => s.dailyClassSales.length === 0) && clasesSinAlumno.length === 0 && (
                   <p className="text-center text-slate-600 py-4">No hay clases diarias registradas.</p>
                 )}
               </div>
