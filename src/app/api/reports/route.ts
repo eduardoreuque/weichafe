@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { parseLocalDate } from "@/lib/helpers";
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -92,8 +93,8 @@ export async function GET(request: NextRequest) {
     // Filtrar pagos por rango de fecha (paidAt, o createdAt si no tiene fecha de pago registrada)
     function filterPaymentsByDateRange(payments: any[], start: string, end: string) {
       if (!start && !end) return payments;
-      const startDateObj = start ? new Date(start) : null;
-      const endDateObj = end ? new Date(end) : null;
+      const startDateObj = start ? parseLocalDate(start) : null;
+      const endDateObj = end ? parseLocalDate(end) : null;
       if (endDateObj) endDateObj.setHours(23, 59, 59, 999);
 
       return payments.filter((p) => {
@@ -207,6 +208,7 @@ export async function GET(request: NextRequest) {
         ultimoPagoMonto: ultimoPago?.amount || 0,
         paymentCount: filteredPayments.length,
         classSalesCount: filteredClassSales.length,
+        classSalesAmountTotal: filteredClassSales.reduce((sum, s) => sum + s.amount, 0),
         estadoPago: getPaymentStatus(student.monthlyPayments),
         monthlyPayments: filteredPayments.map((p) => ({
           id: p.id,
@@ -261,6 +263,10 @@ export async function GET(request: NextRequest) {
       totalClasesDiarias:
         reportData.reduce((sum: number, s: any) => sum + s.classSalesCount, 0) +
         clasesSinAlumno.length,
+      // Monto recaudado por clases diarias (con y sin alumno vinculado), según filtros
+      totalClasesMonto:
+        reportData.reduce((sum: number, s: any) => sum + s.classSalesAmountTotal, 0) +
+        clasesSinAlumno.reduce((sum: number, c: any) => sum + c.amount, 0),
       alumnosAlDia: reportData.filter((s: any) => s.estadoPago === "AL_DIA").length,
       alumnosConDeuda: reportData.filter((s: any) => s.estadoPago === "CON_DEUDA").length,
       alumnosSinPagos: reportData.filter((s: any) => s.estadoPago === "SIN_PAGOS").length,
@@ -312,7 +318,14 @@ export async function GET(request: NextRequest) {
       data: reportData,
       resumen,
       schedules: schedulesArr,
-      disciplines: Array.from(new Set(schedulesArr.map((s: any) => s.discipline))),
+      disciplines: Array.from(
+        new Set([
+          ...schedulesArr.map((s: any) => s.discipline),
+          ...students.flatMap((st) => st.monthlyPayments.map((p: any) => p.discipline)),
+          ...students.flatMap((st) => st.dailyClassSales.map((c: any) => c.discipline.split(","))).flat(),
+          ...clasesSinAlumno.map((c: any) => c.discipline.split(",")).flat(),
+        ])
+      ),
       pagosDetallados,
       clasesSinAlumno,
     });

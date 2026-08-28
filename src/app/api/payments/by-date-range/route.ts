@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { parseLocalDate } from "@/lib/helpers";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -19,9 +20,8 @@ export async function GET(request: Request) {
 
   try {
     // Construir filtro de fecha
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
+    const start = parseLocalDate(startDate);
+    const end = parseLocalDate(endDate);
     end.setHours(23, 59, 59, 999);
 
     // Filtro base de estudiantes (búsqueda por nombre)

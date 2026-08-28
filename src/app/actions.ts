@@ -8,6 +8,9 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createReceiptNumber } from "@/lib/receipts";
+import { parseLocalDate } from "@/lib/helpers";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -31,22 +34,13 @@ function normalizeString(raw: FormDataEntryValue | null): string | null {
   return value.length > 0 ? value : null;
 }
 
-function createReceiptNumber(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const h = String(now.getHours()).padStart(2, "0");
-  const min = String(now.getMinutes()).padStart(2, "0");
-  const sec = String(now.getSeconds()).padStart(2, "0");
-  const rand = String(Math.floor(Math.random() * 900) + 100);
-  return `REC-${y}${m}${d}-${h}${min}${sec}-${rand}`;
-}
-
 export async function createStudentAction(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "No autorizado" };
+
   const fullName = normalizeString(formData.get("fullName"));
   const birthDateRaw = normalizeString(formData.get("birthDate"));
 
@@ -59,7 +53,7 @@ export async function createStudentAction(
     const student = await prisma.student.create({
       data: {
         fullName,
-        birthDate: new Date(birthDateRaw),
+        birthDate: parseLocalDate(birthDateRaw),
         rut: normalizeString(formData.get("rut")),
         email: normalizeString(formData.get("email")),
         whatsapp: normalizeString(formData.get("whatsapp")),
@@ -101,6 +95,9 @@ export async function createMonthlyPaymentAction(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "No autorizado" };
+
   const studentId = normalizeString(formData.get("studentId"));
   const discipline = normalizeString(formData.get("discipline")) as Discipline | null;
   const status = normalizeString(formData.get("status")) as MonthlyStatus | null;
@@ -112,20 +109,27 @@ export async function createMonthlyPaymentAction(
   if (!monthCoveredRaw) return { ok: false, error: "La mensualidad que paga es requerida" };
 
   const amount = normalizeInt(formData.get("amount"));
+  if (amount <= 0) return { ok: false, error: "El monto debe ser mayor a 0" };
+
   const paidAtRaw = normalizeString(formData.get("paidAt"));
   const paymentMethodRaw = normalizeString(formData.get("paymentMethod")) as PaymentMethod | null;
   const disciplinesMulti = normalizeString(formData.get("disciplines"));
   const notes = normalizeString(formData.get("notes"));
 
-  const yearMonth = `${monthCoveredRaw}-01`;
-  const paidAt = paidAtRaw ? new Date(paidAtRaw) : status === "PAGADO" ? new Date() : null;
+  // Fecha LOCAL para evitar el corrimiento de -1 día por zona horaria
+  const monthCovered = parseLocalDate(monthCoveredRaw, "month");
+  if (Number.isNaN(monthCovered.getTime())) {
+    return { ok: false, error: "Mes de cobertura inválido" };
+  }
+
+  const paidAt = paidAtRaw ? parseLocalDate(paidAtRaw) : status === "PAGADO" ? new Date() : null;
 
   const data: Prisma.MonthlyPaymentCreateInput = {
     amount,
     discipline,
     disciplines: disciplinesMulti,
     status,
-    monthCovered: new Date(yearMonth),
+    monthCovered,
     paidAt,
     paymentMethod: paymentMethodRaw && paymentMethods.has(paymentMethodRaw) ? paymentMethodRaw : null,
     notes,
@@ -133,21 +137,33 @@ export async function createMonthlyPaymentAction(
   };
 
   try {
-    const created = await prisma.monthlyPayment.create({ data, include: { student: true } });
-
-    if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
-      await prisma.receipt.create({
-        data: {
-          receiptNumber: createReceiptNumber(),
-          amount: created.amount,
-          description: `Mensualidad ${created.discipline}${created.disciplines ? ` (${created.disciplines})` : ""} - ${new Date(yearMonth).toLocaleDateString("es-CL", { month: "long", year: "numeric" })}`,
-          paymentMethod: paymentMethodRaw,
-          studentId: studentId,
-          monthlyPaymentId: created.id,
-          issuedAt: paidAt ?? new Date(),
-        },
-      });
+    // Evitar cobro duplicado del mismo mes/disciplina
+    const duplicate = await prisma.monthlyPayment.findFirst({
+      where: { studentId, discipline, monthCovered, status: "PAGADO" },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return { ok: false, error: "Ya existe un pago registrado para este alumno, mes y disciplina." };
     }
+
+    // Pago + comprobante atómicos (si falla el comprobante, no queda el pago)
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.monthlyPayment.create({ data, include: { student: true } });
+
+      if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
+        await tx.receipt.create({
+          data: {
+            receiptNumber: createReceiptNumber(),
+            amount: created.amount,
+            description: `Mensualidad ${created.discipline}${created.disciplines ? ` (${created.disciplines})` : ""} - ${monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" })}`,
+            paymentMethod: paymentMethodRaw,
+            studentId: studentId,
+            monthlyPaymentId: created.id,
+            issuedAt: paidAt ?? new Date(),
+          },
+        });
+      }
+    });
 
     revalidatePath("/");
     return { ok: true };
@@ -160,6 +176,9 @@ export async function createDailyClassSaleAction(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "No autorizado" };
+
   const studentIdRaw = normalizeString(formData.get("studentId"));
   const disciplineRaw = normalizeString(formData.get("disciplines")) || normalizeString(formData.get("discipline"));
   const classDateRaw = normalizeString(formData.get("classDate"));
@@ -170,6 +189,8 @@ export async function createDailyClassSaleAction(
   if (!paymentMethodRaw || !paymentMethods.has(paymentMethodRaw)) return { ok: false, error: "Método de pago requerido" };
 
   const amount = normalizeInt(formData.get("amount"));
+  if (amount <= 0) return { ok: false, error: "El monto debe ser mayor a 0" };
+
   const attendeeName = normalizeString(formData.get("attendeeName"));
   const studentId = studentIdRaw ?? null;
 
@@ -177,34 +198,43 @@ export async function createDailyClassSaleAction(
     return { ok: false, error: "Indica el alumno o el nombre del asistente" };
   }
 
-  try {
-    const created = await prisma.dailyClassSale.create({
-      data: {
-        discipline: disciplineRaw,
-        classDate: new Date(classDateRaw),
-        amount,
-        paymentMethod: paymentMethodRaw,
-        notes: normalizeString(formData.get("notes")),
-        attendeeName,
-        student: studentId ? { connect: { id: studentId } } : undefined,
-      },
-      include: { student: true },
-    });
+  // Fecha LOCAL para evitar el corrimiento de -1 día por zona horaria
+  const classDate = parseLocalDate(classDateRaw);
+  if (Number.isNaN(classDate.getTime())) {
+    return { ok: false, error: "Fecha de clase inválida" };
+  }
 
-    const receiptStudentId = created.studentId;
-    if (receiptStudentId) {
-      await prisma.receipt.create({
+  try {
+    // Venta + comprobante atómicos (si falla el comprobante, no queda la venta)
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.dailyClassSale.create({
         data: {
-          receiptNumber: createReceiptNumber(),
-          amount: created.amount,
-          description: `Clase diaria ${created.discipline}`,
-          paymentMethod: created.paymentMethod,
-          studentId: receiptStudentId,
-          dailyClassSaleId: created.id,
-          issuedAt: created.classDate,
+          discipline: disciplineRaw,
+          classDate,
+          amount,
+          paymentMethod: paymentMethodRaw,
+          notes: normalizeString(formData.get("notes")),
+          attendeeName,
+          student: studentId ? { connect: { id: studentId } } : undefined,
         },
+        include: { student: true },
       });
-    }
+
+      const receiptStudentId = created.studentId;
+      if (receiptStudentId) {
+        await tx.receipt.create({
+          data: {
+            receiptNumber: createReceiptNumber(),
+            amount: created.amount,
+            description: `Clase diaria ${created.discipline}`,
+            paymentMethod: created.paymentMethod,
+            studentId: receiptStudentId,
+            dailyClassSaleId: created.id,
+            issuedAt: created.classDate,
+          },
+        });
+      }
+    });
 
     revalidatePath("/");
     return { ok: true };
@@ -215,6 +245,13 @@ export async function createDailyClassSaleAction(
 
 export async function deleteStudentAction(studentId: string): Promise<ActionResult> {
   if (!studentId) return { ok: false, error: "ID de alumno requerido" };
+
+  const session = await getSession();
+  if (!session) return { ok: false, error: "No autorizado" };
+  if (session.role !== "ADMIN") {
+    return { ok: false, error: "No tienes permisos para eliminar alumnos." };
+  }
+
   try {
     await prisma.student.delete({ where: { id: studentId } });
     revalidatePath("/");
@@ -230,6 +267,9 @@ export async function updateStudentAction(
 ): Promise<ActionResult> {
   if (!studentId) return { ok: false, error: "ID de alumno requerido" };
 
+  const session = await getSession();
+  if (!session) return { ok: false, error: "No autorizado" };
+
   const fullName = normalizeString(formData.get("fullName"));
   const birthDateRaw = normalizeString(formData.get("birthDate"));
 
@@ -243,7 +283,7 @@ export async function updateStudentAction(
       where: { id: studentId },
       data: {
         fullName,
-        birthDate: new Date(birthDateRaw),
+        birthDate: parseLocalDate(birthDateRaw),
         rut: normalizeString(formData.get("rut")),
         email: normalizeString(formData.get("email")),
         whatsapp: normalizeString(formData.get("whatsapp")),

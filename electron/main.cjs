@@ -54,6 +54,17 @@ function waitForServer(url, timeoutMs = 30000) {
   });
 }
 
+function ensureDesktopSecret() {
+  const crypto = require("crypto");
+  const dir = app.getPath("userData");
+  fs.mkdirSync(dir, { recursive: true });
+  const secretFile = path.join(dir, "auth-secret");
+  if (!fs.existsSync(secretFile)) {
+    fs.writeFileSync(secretFile, crypto.randomBytes(32).toString("hex"));
+  }
+  return fs.readFileSync(secretFile, "utf-8").trim();
+}
+
 function startPackagedServer() {
   if (isDev) {
     return Promise.resolve();
@@ -61,11 +72,13 @@ function startPackagedServer() {
 
   const serverPath = path.join(process.resourcesPath, "app", ".next", "standalone", "server.js");
   const databaseUrl = ensureDesktopDatabase();
+  const authSecret = ensureDesktopSecret();
 
   nextServer = spawn(process.execPath, [serverPath], {
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
+      AUTH_SECRET: authSecret,
       NODE_ENV: "production",
       HOSTNAME: HOST,
       PORT,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
 
 interface StudentInfo {
@@ -44,8 +45,17 @@ interface ApiResponse {
   totalAmount: number;
 }
 
+function toLocalYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("es-CL", {
+  // Fuerza mediodía para evitar el corrimiento de -1 día por zona horaria
+  const safe = dateStr.includes("T") ? dateStr : dateStr + "T12:00:00";
+  return new Date(safe).toLocaleDateString("es-CL", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -53,7 +63,8 @@ function formatDate(dateStr: string): string {
 }
 
 function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("es-CL", {
+  const safe = dateStr.includes("T") ? dateStr : dateStr + "T12:00:00";
+  return new Date(safe).toLocaleDateString("es-CL", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -87,6 +98,7 @@ function paymentMethodLabel(m: string | null): string {
 }
 
 export default function PagosPorFechaPage() {
+  const router = useRouter();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -96,14 +108,27 @@ export default function PagosPorFechaPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Fecha por defecto: últimos 30 días
+  // Fecha por defecto: últimos 30 días (en zona horaria local)
   useEffect(() => {
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - 30);
-    setEndDate(end.toISOString().split("T")[0]);
-    setStartDate(start.toISOString().split("T")[0]);
+    setEndDate(toLocalYmd(end));
+    setStartDate(toLocalYmd(start));
   }, []);
+
+  // Página exclusiva de ADMIN (protección adicional en el cliente)
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/me");
+        const me = await r.json();
+        if (me.ok !== true || me.role !== "ADMIN") router.replace("/");
+      } catch {
+        router.replace("/");
+      }
+    })();
+  }, [router]);
 
   const searchPayments = useCallback(async () => {
     if (!startDate || !endDate) return;

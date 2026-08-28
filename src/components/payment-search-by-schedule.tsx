@@ -33,6 +33,13 @@ export function PaymentSearchBySchedule() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  // Evita el corrimiento de -1 día por zona horaria en fechas "YYYY-MM-DD"
+  const parseDisplayDate = (value: string | null): Date => {
+    if (!value) return new Date(NaN);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(value + "T12:00:00");
+    return new Date(value);
+  };
+
   useEffect(() => {
     loadSchedules();
   }, []);
@@ -162,7 +169,7 @@ export function PaymentSearchBySchedule() {
                     <td className="px-4 py-3 font-medium text-slate-900">{payment.student.fullName}</td>
                     <td className="px-4 py-3 text-slate-600">{payment.student.rut || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">
-                      {new Date(payment.monthCovered).toLocaleDateString("es-CL", { month: "long", year: "numeric" })}
+                      {parseDisplayDate(payment.monthCovered).toLocaleDateString("es-CL", { month: "long", year: "numeric" })}
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-900">${payment.amount.toLocaleString()}</td>
                     <td className="px-4 py-3">
@@ -179,7 +186,7 @@ export function PaymentSearchBySchedule() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-600">
-                      {payment.paidAt ? new Date(payment.paidAt).toLocaleDateString("es-CL") : "-"}
+                      {payment.paidAt ? parseDisplayDate(payment.paidAt).toLocaleDateString("es-CL") : "-"}
                     </td>
                   </tr>
                 ))}

@@ -12,6 +12,7 @@ const CLASS_SCHEDULES_FILE = join(process.cwd(), "public", "class-schedules.json
 export default async function StudentsBySchedulePage() {
   const session = await getSession();
   if (!session) redirect("/login");
+  if (session.role !== "ADMIN") redirect("/");
 
   // Cargar todas las relaciones de horarios
   let paymentSchedules: Record<string, string> = {};

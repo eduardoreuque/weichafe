@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { parseLocalDate } from "@/lib/helpers";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "La fecha de nacimiento es requerida" }, { status: 400 });
   }
 
-  const birthDate = new Date(birthDateRaw);
+  const birthDate = parseLocalDate(birthDateRaw);
   if (Number.isNaN(birthDate.getTime())) {
     return NextResponse.json({ ok: false, error: "La fecha de nacimiento no es valida" }, { status: 400 });
   }

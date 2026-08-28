@@ -72,6 +72,8 @@ model MonthlyPayment {
   receipt Receipt?
 
   @@index([studentId, monthCovered])
+  @@index([paidAt])
+  @@index([createdAt])
 }
 
 model DailyClassSale {

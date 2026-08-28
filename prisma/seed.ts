@@ -4,6 +4,15 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  // Guard: el seed borra TODOS los datos. Nunca correrlo contra la BD de producción.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+    console.error(
+      "El seed está bloqueado en producción porque borra todos los datos. " +
+        "Para forzarlo, define ALLOW_SEED=true (¡bajo tu propio riesgo!)."
+    );
+    process.exit(1);
+  }
+
   await prisma.receipt.deleteMany();
   await prisma.dailyClassSale.deleteMany();
   await prisma.monthlyPayment.deleteMany();

@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { Discipline, MonthlyStatus, PaymentMethod, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { createReceiptNumber } from "@/lib/receipts";
+import { parseLocalDate } from "@/lib/helpers";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -37,18 +39,6 @@ function normalizeInt(raw: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback;
 }
 
-function createReceiptNumber(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const h = String(now.getHours()).padStart(2, "0");
-  const min = String(now.getMinutes()).padStart(2, "0");
-  const sec = String(now.getSeconds()).padStart(2, "0");
-  const rand = String(Math.floor(Math.random() * 900) + 100);
-  return `REC-${y}${m}${d}-${h}${min}${sec}-${rand}`;
-}
-
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) {
@@ -79,15 +69,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "La mensualidad que paga es requerida" }, { status: 400 });
   }
 
-  const yearMonth = `${monthCoveredRaw}-01`;
-  const monthCovered = new Date(yearMonth);
+  // Fecha LOCAL para evitar el corrimiento de -1 día por zona horaria
+  const monthCovered = parseLocalDate(monthCoveredRaw, "month");
   if (Number.isNaN(monthCovered.getTime())) {
     return NextResponse.json({ ok: false, error: "Mes de cobertura invalido" }, { status: 400 });
   }
 
   const amount = normalizeInt(body.amount);
+  if (amount <= 0) {
+    return NextResponse.json({ ok: false, error: "El monto debe ser mayor a 0" }, { status: 400 });
+  }
+
   const paidAtRaw = normalizeString(body.paidAt);
-  const paidAt = paidAtRaw ? new Date(paidAtRaw) : status === "PAGADO" ? new Date() : null;
+  const paidAt = paidAtRaw ? parseLocalDate(paidAtRaw) : status === "PAGADO" ? new Date() : null;
 
   if (paidAt && Number.isNaN(paidAt.getTime())) {
     return NextResponse.json({ ok: false, error: "Fecha de pago invalida" }, { status: 400 });
@@ -107,7 +101,42 @@ export async function POST(request: Request) {
   const scheduleId = normalizeString(body.scheduleId);
 
   try {
-    const created = await prisma.monthlyPayment.create({ data, include: { student: true } });
+    // Evitar cobro duplicado del mismo mes/disciplina (nivel código)
+    const duplicate = await prisma.monthlyPayment.findFirst({
+      where: { studentId, discipline, monthCovered, status: "PAGADO" },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        { ok: false, error: "Ya existe un pago registrado para este alumno, mes y disciplina." },
+        { status: 400 }
+      );
+    }
+
+    // Pago + comprobante en una sola transacción: si falla el comprobante,
+    // no queda un pago huérfano ni duplicados por reintentos.
+    const created = await prisma.$transaction(async (tx) => {
+      const created = await tx.monthlyPayment.create({ data, include: { student: true } });
+
+      if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
+        await tx.receipt.create({
+          data: {
+            receiptNumber: createReceiptNumber(),
+            amount: created.amount,
+            description: `Mensualidad ${created.discipline} - ${monthCovered.toLocaleDateString("es-CL", {
+              month: "long",
+              year: "numeric",
+            })}`,
+            paymentMethod: paymentMethodRaw,
+            studentId,
+            monthlyPaymentId: created.id,
+            issuedAt: paidAt ?? new Date(),
+          },
+        });
+      }
+
+      return created;
+    });
 
     // Guardar relación con horario si existe
     if (scheduleId) {
@@ -119,23 +148,6 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error("Error saving payment schedule:", error);
       }
-    }
-
-    if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
-      await prisma.receipt.create({
-        data: {
-          receiptNumber: createReceiptNumber(),
-          amount: created.amount,
-          description: `Mensualidad ${created.discipline} - ${monthCovered.toLocaleDateString("es-CL", {
-            month: "long",
-            year: "numeric",
-          })}`,
-          paymentMethod: paymentMethodRaw,
-          studentId,
-          monthlyPaymentId: created.id,
-          issuedAt: paidAt ?? new Date(),
-        },
-      });
     }
 
     revalidatePath("/");

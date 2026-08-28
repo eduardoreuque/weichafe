@@ -112,3 +112,31 @@ export function parseDisciplines(d: string | undefined | null): string[] {
   if (!d || d.trim() === "") return [];
   return d.split(",").map((s) => s.trim()).filter(Boolean);
 }
+
+/**
+ * Parsea una fecha en formato "YYYY-MM-DD" (o "YYYY-MM") como fecha LOCAL.
+ * Evita el corrimiento de -1 día que causa `new Date("2026-08-01")`
+ * (parseado como medianoche UTC) en zonas horarias como Chile (UTC-4).
+ */
+export function parseLocalDate(
+  value: string | null | undefined,
+  kind: "day" | "month" = "day"
+): Date {
+  if (!value || value.trim() === "") return new Date(NaN);
+  const parts = value.split("-").map((n) => parseInt(n, 10));
+  if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) {
+    return new Date(NaN);
+  }
+  const year = parts[0];
+  const month = parts[1] - 1; // 0-indexed
+  const day = kind === "month" ? 1 : parts.length >= 3 && !Number.isNaN(parts[2]) ? parts[2] : 1;
+  return new Date(year, month, day);
+}
+
+/** Convierte un Date a "YYYY-MM-DD" usando la zona horaria local. */
+export function toLocalInputValue(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}

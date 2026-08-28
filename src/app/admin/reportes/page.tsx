@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
 
 interface Schedule {
@@ -83,6 +84,7 @@ interface Resumen {
   totalPagadoTotal: number;
   totalPendienteTotal: number;
   totalClasesDiarias: number;
+  totalClasesMonto: number;
   alumnosAlDia: number;
   alumnosConDeuda: number;
   alumnosSinPagos: number;
@@ -120,6 +122,20 @@ function formatDate(dateStr: string): string {
 
 export default function ReportesPage() {
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  // Esta página es exclusiva de ADMIN (protección adicional en el cliente)
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/me");
+        const me = await r.json();
+        if (me.ok !== true || me.role !== "ADMIN") router.replace("/");
+      } catch {
+        router.replace("/");
+      }
+    })();
+  }, [router]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [disciplines, setDisciplines] = useState<string[]>([]);
   const [data, setData] = useState<StudentReport[]>([]);
@@ -464,6 +480,11 @@ export default function ReportesPage() {
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
                 <p className="text-sm font-medium text-blue-700">Clases Diarias</p>
                 <p className="mt-1 text-3xl font-bold text-blue-900">{resumen.totalClasesDiarias}</p>
+                <p className="mt-1 text-sm font-semibold text-blue-800">{formatCurrency(resumen.totalClasesMonto)}</p>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+                <p className="text-sm font-medium text-cyan-700">Total Recaudado (mensualidades + clases)</p>
+                <p className="mt-1 text-3xl font-bold text-cyan-900">{formatCurrency(resumen.totalPagadoTotal + resumen.totalClasesMonto)}</p>
               </div>
             </section>
 

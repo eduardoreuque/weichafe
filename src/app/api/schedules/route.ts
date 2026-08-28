@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Sesion expirada" }, { status: 401 });
+  }
+
   try {
     const schedules = await prisma.schedule.findMany({
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
@@ -14,6 +20,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Sesion expirada" }, { status: 401 });
+  }
+  // Solo administradores pueden crear/editar/eliminar horarios
+  if (session.role !== "ADMIN") {
+    return NextResponse.json({ error: "No tienes permisos de administrador" }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const { action, schedule } = body;

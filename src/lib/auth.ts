@@ -2,9 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { cache } from "react";
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? "weichafe-secret-local-dev-key-32chars!!"
-);
+const DEV_FALLBACK_SECRET = "weichafe-secret-local-dev-key-32chars!!";
 
 const COOKIE_NAME = "weichafe-session";
 const EXPIRY_SECONDS = 60 * 60 * 24 * 7; // 7 días
@@ -18,17 +16,38 @@ export interface SessionUser {
   role: UserRole;
 }
 
+/**
+ * Secreto de firma de JWT.
+ * En producción es OBLIGATORIO configurar AUTH_SECRET: si no existe, se lanza
+ * error en vez de usar la clave pública de desarrollo (vulnerabilidad de sesión).
+ * Se evalúa de forma diferida (lazy) para no romper el build de Next.js,
+ * que corre con NODE_ENV=production pero sin el secreto todavía.
+ */
+function getSecretKey(): Uint8Array {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "AUTH_SECRET no está configurado. Defínelo en el entorno del servidor " +
+          "(systemd EnvironmentFile o .env) antes de iniciar en producción."
+      );
+    }
+    return new TextEncoder().encode(DEV_FALLBACK_SECRET);
+  }
+  return new TextEncoder().encode(secret);
+}
+
 export async function createSession(user: SessionUser): Promise<string> {
   return new SignJWT({ ...user })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${EXPIRY_SECONDS}s`)
-    .sign(SECRET_KEY);
+    .sign(getSecretKey());
 }
 
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const { payload } = await jwtVerify(token, getSecretKey());
     return payload as unknown as SessionUser;
   } catch {
     return null;

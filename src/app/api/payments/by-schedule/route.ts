@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { parseLocalDate } from "@/lib/helpers";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -22,27 +23,45 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Obtener todos los estudiantes que tienen este horario
-    const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-    const studentSchedules: Record<string, string[]> = JSON.parse(data);
-    
-    const studentIdsWithSchedule = Object.entries(studentSchedules)
-      .filter(([_, schedules]) => Array.isArray(schedules) && schedules.includes(scheduleId))
-      .map(([studentId]) => studentId);
+    // Fuente principal: alumnos con este horario en la BD (scheduleId)
+    const studentsFromDb = await prisma.student.findMany({
+      where: { scheduleId },
+      select: { id: true },
+    });
+    let studentIds = studentsFromDb.map((s) => s.id);
 
-    // Obtener pagos mensuales de estos estudiantes
-    const whereClause: any = {
-      studentId: { in: studentIdsWithSchedule },
-    };
+    // Adicional: horarios legacy en JSON (multi-horario, solo si existe y es legible)
+    try {
+      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
+      const studentSchedules: Record<string, string[]> = JSON.parse(data);
+      const extra = Object.entries(studentSchedules)
+        .filter(([, schedules]) => Array.isArray(schedules) && schedules.includes(scheduleId))
+        .map(([studentId]) => studentId);
+      studentIds = Array.from(new Set([...studentIds, ...extra]));
+    } catch {}
 
+    if (studentIds.length === 0) return NextResponse.json([]);
+
+    const where: any = { studentId: { in: studentIds } };
+
+    // Filtrar por fecha de pago/registro (consistente con reportes y pagos por fecha)
     if (startDate || endDate) {
-      whereClause.monthCovered = {};
-      if (startDate) whereClause.monthCovered.gte = new Date(startDate);
-      if (endDate) whereClause.monthCovered.lte = new Date(endDate);
+      const start = startDate ? parseLocalDate(startDate) : undefined;
+      const end = endDate
+        ? (() => {
+            const d = parseLocalDate(endDate);
+            d.setHours(23, 59, 59, 999);
+            return d;
+          })()
+        : undefined;
+      const range: any = {};
+      if (start) range.gte = start;
+      if (end) range.lte = end;
+      where.OR = [{ paidAt: range }, { paidAt: null, createdAt: range }];
     }
 
     const payments = await prisma.monthlyPayment.findMany({
-      where: whereClause,
+      where,
       include: {
         student: {
           select: {
@@ -55,7 +74,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: {
-        monthCovered: "desc",
+        createdAt: "desc",
       },
     });
 
