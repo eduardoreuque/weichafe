@@ -103,14 +103,13 @@ jobs:
                 # Aplicar migraciones
                 cd ~/weichafe-standalone
                 DATABASE_URL="file:/home/ec2-user/weichafe-standalone/prisma/dev.db" npx prisma migrate deploy --schema=./prisma/schema.prisma
-                
-                # Generar o reutilizar secreto de sesión (persistente entre deploys)
-                sudo mkdir -p /etc/weichafe
-                if [ ! -s /etc/weichafe/env ]; then
-                  echo "AUTH_SECRET=$(openssl rand -hex 32)" | sudo tee /etc/weichafe/env >/dev/null
-                  sudo chmod 600 /etc/weichafe/env
-                fi
 
+                # Regularizar ventas de clase diaria huérfanas (vincular por nombre de alumno)
+                if [ -f scripts/regularize-orphan-class-sales.cjs ]; then
+                  echo "--- Regularizando ventas huerfanas ---"
+                  DATABASE_URL="file:/home/ec2-user/weichafe-standalone/prisma/dev.db" node scripts/regularize-orphan-class-sales.cjs || echo "Regularizacion no critica, continuando"
+                fi
+                
                 # Configurar servicio systemd
                 printf "%s\n" \
                   "[Unit]" \
@@ -121,7 +120,6 @@ jobs:
                   "Type=simple" \
                   "User=ec2-user" \
                   "WorkingDirectory=/home/ec2-user/weichafe-standalone" \
-                  "EnvironmentFile=/etc/weichafe/env" \
                   "Environment=HOSTNAME=0.0.0.0" \
                   "Environment=PORT=3000" \
                   "Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db" \

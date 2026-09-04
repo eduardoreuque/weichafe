@@ -27,6 +27,8 @@ copyDir(publicDir, path.join(standaloneDir, "public"));
 copyDir(staticDir, path.join(standaloneDir, ".next", "static"));
 // Incluir las migraciones y schema de Prisma en el standalone para poder aplicar migraciones en el servidor
 copyDir(path.join(root, "prisma"), path.join(standaloneDir, "prisma"));
+// Incluir scripts de mantenimiento (regularización de datos, etc.)
+copyDir(path.join(root, "scripts"), path.join(standaloneDir, "scripts"));
 
 // Crear directorio uploads vacío en el standalone (en prod se usa UPLOAD_DIR externo)
 ensureDir(path.join(standaloneDir, "public", "uploads"));

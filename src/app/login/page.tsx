@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { loginAction } from "./actions";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, null);
@@ -88,6 +89,13 @@ export default function LoginPage() {
         <p className="mt-5 text-center text-xs text-slate-400">
           Acceso restringido al personal autorizado
         </p>
+
+        <Link
+          href="/recovery"
+          className="mt-3 block text-center text-xs font-semibold text-slate-500 hover:text-emerald-700"
+        >
+          ¿No puedes iniciar sesión? Recuperar acceso
+        </Link>
       </div>
     </main>
   );

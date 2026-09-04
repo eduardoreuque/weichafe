@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { parseLocalDate } from "@/lib/helpers";
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const studentWhere: any = {};
     if (onlyActive) studentWhere.isActive = true;
 
-    // Filtro por búsqueda de nombre/RUT
+    // Filtro por bÃºsqueda de nombre/RUT
     if (searchQuery.trim()) {
       studentWhere.OR = [
         { fullName: { contains: searchQuery.trim() } },
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Ventas de clases diarias registradas sin alumno vinculado (nombre libre / "walk-in")
-    // Estas no aparecen bajo ningún Student, por eso se consultan y reportan aparte.
+    // Estas no aparecen bajo ningÃºn Student, por eso se consultan y reportan aparte.
     const orphanWhere: any = { studentId: null };
     if (searchQuery.trim()) {
       orphanWhere.attendeeName = { contains: searchQuery.trim() };
@@ -123,17 +123,32 @@ export async function GET(request: NextRequest) {
     // Aplicar todos los filtros
     let filteredStudents = students;
 
-    // Filtro por horario (basado en scheduleId de la DB)
+    // Determinar la disciplina "efectiva": si se selecciona un horario,
+    // se hereda la disciplina de ese horario (ej: horario MMA -> disciplina MMA).
+    const scheduleFilterObj = scheduleId ? schedulesById[scheduleId] : null;
+    const effectiveDiscipline = discipline || scheduleFilterObj?.discipline || "";
+
+    // Filtro por horario (alumno asignado a ese bloque)
     if (scheduleId) {
-      filteredStudents = filteredStudents.filter((s) => {
-        return s.scheduleId === scheduleId;
-      });
+      filteredStudents = filteredStudents.filter(
+        (s) => s.scheduleId === scheduleId || s.scheduleId == null
+      );
+      // Conservamos alumnos sin scheduleId y luego el filtro por disciplina
+      // efectiva decide si tienen registros que coincidan con el horario.
     }
 
-    // Filtro por disciplina (en pagos mensuales)
-    if (discipline) {
+    // Filtro por disciplina efectiva: el alumno debe tener al menos una
+    // mensualidad O clase diaria de esa disciplina (no solo mensualidad).
+    if (effectiveDiscipline) {
       filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.some((p) => p.discipline === discipline)
+        s.monthlyPayments.some(
+          (p) =>
+            p.discipline === effectiveDiscipline ||
+            (p.disciplines || "").split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+        ) ||
+        s.dailyClassSales.some((c) =>
+          c.discipline.split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+        )
       );
     }
 
@@ -168,8 +183,30 @@ export async function GET(request: NextRequest) {
     // Armar datos de respuesta
     const reportData = filteredStudents.map((student) => {
       const scheduleInfo = getStudentScheduleInfo(student.id, student.scheduleId);
-      const filteredPayments = filterPaymentsByDateRange(student.monthlyPayments, startDate, endDate);
-      const filteredClassSales = filterClassSalesByDateRange(student.dailyClassSales, startDate, endDate);
+      const filteredPayments = filterPaymentsByDateRange(student.monthlyPayments, startDate, endDate)
+        .filter((p) => {
+          if (!effectiveDiscipline) return true;
+          return (
+            p.discipline === effectiveDiscipline ||
+            (p.disciplines || "").split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+          );
+        });
+      const filteredClassSales = filterClassSalesByDateRange(student.dailyClassSales, startDate, endDate)
+        .filter((s) => {
+          if (!effectiveDiscipline) return true;
+          return s.discipline.split(",").map((x) => x.trim()).includes(effectiveDiscipline);
+        })
+        .filter((s) => {
+          // Si se filtra por un horario concreto, exigir el mismo dÃ­a de la semana
+          if (!scheduleFilterObj) return true;
+          const dayMap: Record<string, string> = {
+            LUNES: "1", MARTES: "2", MIERCOLES: "3", JUEVES: "4",
+            VIERNES: "5", SABADO: "6", DOMINGO: "0",
+          };
+          const dow = dayMap[scheduleFilterObj.dayOfWeek];
+          if (dow === undefined) return true;
+          return new Date(s.classDate).getDay().toString() === dow;
+        });
 
       const totalPagado = filteredPayments
         .filter((p) => p.status === "PAGADO")
@@ -236,14 +273,25 @@ export async function GET(request: NextRequest) {
 
     // Filtrar y mapear ventas de clases sin alumno vinculado (mismos filtros de fecha/disciplina/horario)
     let filteredOrphanClassSales = filterClassSalesByDateRange(orphanClassSales, startDate, endDate);
-    if (discipline) {
+    if (effectiveDiscipline) {
       filteredOrphanClassSales = filteredOrphanClassSales.filter((s) =>
-        s.discipline.split(",").includes(discipline)
+        s.discipline.split(",").map((x) => x.trim()).includes(effectiveDiscipline)
       );
     }
-    // Las ventas sin alumno no tienen horario asignado; si se filtra por horario específico, se excluyen.
-    if (scheduleId) {
-      filteredOrphanClassSales = [];
+    // Las ventas sin alumno (walk-ins) no tienen horario asignado.
+    // Si se filtra por horario, se respeta el dÃ­a de la semana del horario,
+    // pero no se excluyen todas (un walk-in puede caer en el bloque correcto).
+    if (scheduleFilterObj) {
+      const dayMap: Record<string, string> = {
+        LUNES: "1", MARTES: "2", MIERCOLES: "3", JUEVES: "4",
+        VIERNES: "5", SABADO: "6", DOMINGO: "0",
+      };
+      const dow = dayMap[scheduleFilterObj.dayOfWeek];
+      if (dow !== undefined) {
+        filteredOrphanClassSales = filteredOrphanClassSales.filter(
+          (s) => new Date(s.classDate).getDay().toString() === dow
+        );
+      }
     }
     const clasesSinAlumno = filteredOrphanClassSales.map((s) => ({
       id: s.id,
@@ -255,7 +303,7 @@ export async function GET(request: NextRequest) {
       notes: s.notes || "",
     }));
 
-    // Resumen general (sin filtro de fecha para mantener totales históricos)
+    // Resumen general (sin filtro de fecha para mantener totales histÃ³ricos)
     const resumen = {
       totalAlumnos: filteredStudents.length,
       totalPagadoTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPagado, 0),
@@ -263,7 +311,7 @@ export async function GET(request: NextRequest) {
       totalClasesDiarias:
         reportData.reduce((sum: number, s: any) => sum + s.classSalesCount, 0) +
         clasesSinAlumno.length,
-      // Monto recaudado por clases diarias (con y sin alumno vinculado), según filtros
+      // Monto recaudado por clases diarias (con y sin alumno vinculado), segÃºn filtros
       totalClasesMonto:
         reportData.reduce((sum: number, s: any) => sum + s.classSalesAmountTotal, 0) +
         clasesSinAlumno.reduce((sum: number, c: any) => sum + c.amount, 0),
@@ -279,11 +327,16 @@ export async function GET(request: NextRequest) {
       const filteredPayments = filterPaymentsByDateRange(student.monthlyPayments, startDate, endDate);
 
       filteredPayments.forEach((payment) => {
-        if (scheduleId) {
-          const schedule = schedulesById[scheduleId];
-          if (payment.discipline !== schedule?.discipline) return;
+        // Aplicar disciplina efectiva (la del horario o el filtro explÃ­cito)
+        if (effectiveDiscipline) {
+          const ok =
+            payment.discipline === effectiveDiscipline ||
+            (payment.disciplines || "")
+              .split(",")
+              .map((x: string) => x.trim())
+              .includes(effectiveDiscipline);
+          if (!ok) return;
         }
-        if (discipline && payment.discipline !== discipline) return;
 
         pagosDetallados.push({
           studentId: student.id,
