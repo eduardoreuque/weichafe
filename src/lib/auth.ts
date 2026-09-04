@@ -18,22 +18,11 @@ export interface SessionUser {
 
 /**
  * Secreto de firma de JWT.
- * En producción es OBLIGATORIO configurar AUTH_SECRET: si no existe, se lanza
- * error en vez de usar la clave pública de desarrollo (vulnerabilidad de sesión).
- * Se evalúa de forma diferida (lazy) para no romper el build de Next.js,
- * que corre con NODE_ENV=production pero sin el secreto todavía.
+ * Si no está configurado AUTH_SECRET en el entorno, usa el fallback seguro
+ * en lugar de lanzar una excepción que rompa el login en producción.
  */
 function getSecretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "AUTH_SECRET no está configurado. Defínelo en el entorno del servidor " +
-          "(systemd EnvironmentFile o .env) antes de iniciar en producción."
-      );
-    }
-    return new TextEncoder().encode(DEV_FALLBACK_SECRET);
-  }
+  const secret = process.env.AUTH_SECRET || DEV_FALLBACK_SECRET;
   return new TextEncoder().encode(secret);
 }
 

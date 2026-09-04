@@ -124,6 +124,7 @@ jobs:
                   "Environment=PORT=3000" \
                   "Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db" \
                   "Environment=UPLOAD_DIR=/var/weichafe/uploads" \
+                  "Environment=AUTH_SECRET=weichafe-prod-secret-key-32chars-min-len!!" \
                   "ExecStart=/usr/bin/node server.js" \
                   "Restart=always" \
                   "RestartSec=5" \
