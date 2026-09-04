@@ -144,10 +144,10 @@ export async function GET(request: NextRequest) {
         s.monthlyPayments.some(
           (p) =>
             p.discipline === effectiveDiscipline ||
-            (p.disciplines || "").split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+            (p.disciplines || "").split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
         ) ||
         s.dailyClassSales.some((c) =>
-          c.discipline.split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+          c.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
         )
       );
     }
@@ -188,13 +188,13 @@ export async function GET(request: NextRequest) {
           if (!effectiveDiscipline) return true;
           return (
             p.discipline === effectiveDiscipline ||
-            (p.disciplines || "").split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+            (p.disciplines || "").split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
           );
         });
       const filteredClassSales = filterClassSalesByDateRange(student.dailyClassSales, startDate, endDate)
         .filter((s) => {
           if (!effectiveDiscipline) return true;
-          return s.discipline.split(",").map((x) => x.trim()).includes(effectiveDiscipline);
+          return s.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline);
         })
         .filter((s) => {
           // Si se filtra por un horario concreto, exigir el mismo dÃ­a de la semana
@@ -275,7 +275,7 @@ export async function GET(request: NextRequest) {
     let filteredOrphanClassSales = filterClassSalesByDateRange(orphanClassSales, startDate, endDate);
     if (effectiveDiscipline) {
       filteredOrphanClassSales = filteredOrphanClassSales.filter((s) =>
-        s.discipline.split(",").map((x) => x.trim()).includes(effectiveDiscipline)
+        s.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
       );
     }
     // Las ventas sin alumno (walk-ins) no tienen horario asignado.
@@ -407,3 +407,4 @@ function getPaymentStatus(payments: { status: string }[]): string {
   if (hasPending) return "CON_DEUDA";
   return "AL_DIA";
 }
+
