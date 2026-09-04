@@ -319,6 +319,8 @@ export default async function Home() {
                           alt={student.fullName}
                           width={64}
                           height={64}
+                          loading="lazy"
+                          decoding="async"
                           className="rounded-full border-2 border-slate-200 object-cover h-16 w-16"
                         />
                       ) : (

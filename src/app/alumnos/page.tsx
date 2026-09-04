@@ -198,6 +198,8 @@ export default async function StudentsPage({
                               alt={student.fullName}
                               width={40}
                               height={40}
+                              loading="lazy"
+                              decoding="async"
                               className="rounded-full border-2 border-slate-200 object-cover"
                             />
                           ) : (
