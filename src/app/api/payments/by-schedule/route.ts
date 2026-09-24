@@ -2,10 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { parseLocalDate } from "@/lib/helpers";
-import { readFileSync } from "fs";
-import { join } from "path";
-
-const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -23,26 +19,22 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Fuente principal: alumnos con este horario en la BD (scheduleId)
+    // Alumnos asignados a este horario (BD)
     const studentsFromDb = await prisma.student.findMany({
       where: { scheduleId },
       select: { id: true },
     });
-    let studentIds = studentsFromDb.map((s) => s.id);
+    const studentIds = studentsFromDb.map((s) => s.id);
 
-    // Adicional: horarios legacy en JSON (multi-horario, solo si existe y es legible)
-    try {
-      const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-      const studentSchedules: Record<string, string[]> = JSON.parse(data);
-      const extra = Object.entries(studentSchedules)
-        .filter(([, schedules]) => Array.isArray(schedules) && schedules.includes(scheduleId))
-        .map(([studentId]) => studentId);
-      studentIds = Array.from(new Set([...studentIds, ...extra]));
-    } catch {}
-
-    if (studentIds.length === 0) return NextResponse.json([]);
-
-    const where: any = { studentId: { in: studentIds } };
+    // Un pago puede pertenecer al horario por dos vías:
+    //  1) el pago quedó vinculado explícitamente al horario (scheduleId)
+    //  2) el alumno que paga tiene ese horario asignado
+    const where: any = {
+      OR: [
+        { scheduleId },
+        ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
+      ],
+    };
 
     // Filtrar por fecha de pago/registro (consistente con reportes y pagos por fecha)
     if (startDate || endDate) {
@@ -57,7 +49,7 @@ export async function GET(request: Request) {
       const range: any = {};
       if (start) range.gte = start;
       if (end) range.lte = end;
-      where.OR = [{ paidAt: range }, { paidAt: null, createdAt: range }];
+      where.AND = [{ OR: [{ paidAt: range }, { paidAt: null, createdAt: range }] }];
     }
 
     const payments = await prisma.monthlyPayment.findMany({

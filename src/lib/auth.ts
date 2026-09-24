@@ -20,9 +20,19 @@ export interface SessionUser {
  * Secreto de firma de JWT.
  * Si no está configurado AUTH_SECRET en el entorno, usa el fallback seguro
  * en lugar de lanzar una excepción que rompa el login en producción.
+ * En producción se advierte por consola: el despliegue genera
+ * /var/weichafe/auth.env con un secreto único por servidor.
  */
 function getSecretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET || DEV_FALLBACK_SECRET;
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[auth] AUTH_SECRET no está definido: se usa la clave por defecto. Configúralo en el entorno del servidor."
+      );
+    }
+    return new TextEncoder().encode(DEV_FALLBACK_SECRET);
+  }
   return new TextEncoder().encode(secret);
 }
 

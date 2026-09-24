@@ -5,10 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createReceiptNumber } from "@/lib/receipts";
 import { parseLocalDate } from "@/lib/helpers";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-
-const PAYMENT_SCHEDULES_FILE = join(process.cwd(), "public", "payment-schedules.json");
 
 const disciplines = new Set<Discipline>([
   "MMA",
@@ -87,6 +83,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Fecha de pago invalida" }, { status: 400 });
   }
 
+  const scheduleIdRaw = normalizeString(body.scheduleId);
+  let scheduleId: string | null = null;
+  if (scheduleIdRaw) {
+    const scheduleExists = await prisma.schedule.findUnique({
+      where: { id: scheduleIdRaw },
+      select: { id: true },
+    });
+    scheduleId = scheduleExists?.id ?? null;
+  }
+
   const data: Prisma.MonthlyPaymentCreateInput = {
     amount,
     discipline,
@@ -96,9 +102,9 @@ export async function POST(request: Request) {
     paymentMethod: paymentMethodRaw && paymentMethods.has(paymentMethodRaw) ? paymentMethodRaw : null,
     notes: normalizeString(body.notes),
     student: { connect: { id: studentId } },
+    // El horario queda guardado en la BD (antes se perdia en un JSON en cada deploy)
+    schedule: scheduleId ? { connect: { id: scheduleId } } : undefined,
   };
-
-  const scheduleId = normalizeString(body.scheduleId);
 
   try {
     // Evitar cobro duplicado del mismo mes/disciplina (nivel código)
@@ -115,7 +121,7 @@ export async function POST(request: Request) {
 
     // Pago + comprobante en una sola transacción: si falla el comprobante,
     // no queda un pago huérfano ni duplicados por reintentos.
-    const created = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const created = await tx.monthlyPayment.create({ data, include: { student: true } });
 
       if (status === "PAGADO" && paymentMethodRaw && paymentMethods.has(paymentMethodRaw)) {
@@ -138,19 +144,11 @@ export async function POST(request: Request) {
       return created;
     });
 
-    // Guardar relación con horario si existe
-    if (scheduleId) {
-      try {
-        const fileData = readFileSync(PAYMENT_SCHEDULES_FILE, "utf-8");
-        const paymentSchedules = JSON.parse(fileData);
-        paymentSchedules[created.id] = scheduleId;
-        writeFileSync(PAYMENT_SCHEDULES_FILE, JSON.stringify(paymentSchedules, null, 2));
-      } catch (error) {
-        console.error("Error saving payment schedule:", error);
-      }
-    }
-
     revalidatePath("/");
+    revalidatePath("/admin/pagos-por-horario");
+    revalidatePath("/admin/pagos-por-fecha");
+    revalidatePath("/admin/reportes");
+    revalidatePath("/admin/alumnos-por-horario");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

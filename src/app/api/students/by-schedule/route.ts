@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { readFileSync } from "fs";
-import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
-const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
-
+/**
+ * Alumnos por horario.
+ *
+ * Antes leía public/schedules.json + public/student-schedules.json, archivos que
+ * se resetean en cada deploy, por lo que la búsqueda devolvía vacío en producción.
+ * Ahora se resuelve todo contra la base de datos: el horario (por id o por
+ * disciplina/día/hora) y los alumnos con ese scheduleId asignado.
+ */
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) {
@@ -16,8 +20,9 @@ export async function GET(request: Request) {
   const discipline = searchParams.get("discipline");
   const dayOfWeek = searchParams.get("dayOfWeek");
   const startTime = searchParams.get("startTime");
+  const scheduleIdParam = searchParams.get("scheduleId");
 
-  if (!discipline || !dayOfWeek || !startTime) {
+  if (!scheduleIdParam && (!discipline || !dayOfWeek || !startTime)) {
     return NextResponse.json(
       { error: "Faltan parámetros: discipline, dayOfWeek, startTime" },
       { status: 400 }
@@ -25,36 +30,22 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Leer horarios
-    const schedulesData = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
-    const schedules = JSON.parse(schedulesData).schedules;
-    
-    // Filtrar horarios que coincidan
-    const matchingSchedules = schedules.filter(
-      (s: any) => s.discipline === discipline && s.dayOfWeek === dayOfWeek && s.startTime === startTime
-    );
+    const schedule = scheduleIdParam
+      ? await prisma.schedule.findUnique({ where: { id: scheduleIdParam } })
+      : await prisma.schedule.findFirst({
+          where: {
+            discipline: discipline ?? undefined,
+            dayOfWeek: dayOfWeek ?? undefined,
+            startTime: startTime ?? undefined,
+          },
+        });
 
-    if (matchingSchedules.length === 0) {
+    if (!schedule) {
       return NextResponse.json([]);
     }
 
-    const scheduleId = matchingSchedules[0].id;
-
-    // Leer horarios de estudiantes
-    const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-    const studentSchedules: Record<string, string[]> = JSON.parse(data);
-    
-    const studentIdsWithSchedule = Object.entries(studentSchedules)
-      .filter(([_, schedules]) => Array.isArray(schedules) && schedules.includes(scheduleId))
-      .map(([studentId]) => studentId);
-
-    if (studentIdsWithSchedule.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    // Obtener información de los estudiantes
     const students = await prisma.student.findMany({
-      where: { id: { in: studentIdsWithSchedule } },
+      where: { scheduleId: schedule.id },
       select: {
         id: true,
         fullName: true,

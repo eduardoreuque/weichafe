@@ -51,6 +51,7 @@ export async function POST(request: Request) {
   const classDateRaw = normalizeString(body.classDate);
   const paymentMethodRaw = normalizeString(body.paymentMethod) as PaymentMethod | null;
   const attendeeName = normalizeString(body.attendeeName);
+  const scheduleIdRaw = normalizeString(body.scheduleId);
 
   if (!disciplineRaw) {
     return NextResponse.json({ ok: false, error: "Selecciona al menos una disciplina" }, { status: 400 });
@@ -80,6 +81,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    // El horario es opcional: se valida contra la BD para no romper si llega vacío/inexistente
+    let scheduleId: string | null = null;
+    if (scheduleIdRaw) {
+      const scheduleExists = await prisma.schedule.findUnique({
+        where: { id: scheduleIdRaw },
+        select: { id: true },
+      });
+      scheduleId = scheduleExists?.id ?? null;
+    }
+
     // Venta + comprobante en una sola transacción
     const created = await prisma.$transaction(async (tx) => {
       const created = await tx.dailyClassSale.create({
@@ -91,6 +102,8 @@ export async function POST(request: Request) {
           notes: normalizeString(body.notes),
           attendeeName,
           student: studentIdRaw ? { connect: { id: studentIdRaw } } : undefined,
+          // Antes este dato se enviaba desde el formulario pero se descartaba
+          schedule: scheduleId ? { connect: { id: scheduleId } } : undefined,
         },
         include: { student: true },
       });
@@ -113,6 +126,9 @@ export async function POST(request: Request) {
     });
 
     revalidatePath("/");
+    revalidatePath("/admin/pagos-por-fecha");
+    revalidatePath("/admin/reportes");
+    revalidatePath("/admin/alumnos-por-horario");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

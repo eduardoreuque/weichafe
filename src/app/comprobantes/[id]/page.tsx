@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PrintButton } from "@/components/print-button";
 import { disciplineLabel, paymentMethodLabel, toDateLabel } from "@/lib/helpers";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -11,6 +12,11 @@ type Props = {
 
 export default async function ReceiptPage({ params }: Props) {
   const { id } = await params;
+
+  // Antes esta página no validaba sesión: con cualquier cookie presente se
+  // podía abrir el comprobante de otro alumno. Ahora exige sesión válida.
+  const session = await getSession();
+  if (!session) redirect("/login");
 
   const receipt = await prisma.receipt.findUnique({
     where: { id },

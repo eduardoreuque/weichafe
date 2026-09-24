@@ -108,8 +108,11 @@ export async function GET(request: NextRequest) {
     // Filtrar clases diarias por rango de fecha
     function filterClassSalesByDateRange(sales: any[], start: string, end: string) {
       if (!start && !end) return sales;
-      const startDateObj = start ? new Date(start) : null;
-      const endDateObj = end ? new Date(end) : null;
+      // parseLocalDate evita el corrimiento de zona horaria: con new Date("YYYY-MM-DD")
+      // el límite superior quedaba en el día anterior y se perdían las clases
+      // registradas el último día del rango.
+      const startDateObj = start ? parseLocalDate(start) : null;
+      const endDateObj = end ? parseLocalDate(end) : null;
       if (endDateObj) endDateObj.setHours(23, 59, 59, 999);
 
       return sales.filter((s) => {
@@ -190,6 +193,12 @@ export async function GET(request: NextRequest) {
             p.discipline === effectiveDiscipline ||
             (p.disciplines || "").split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
           );
+        })
+        .filter((p) => {
+          // Si el pago quedó vinculado a un horario concreto, exigir coincidencia exacta.
+          // Los pagos antiguos sin horario se mantienen.
+          if (scheduleFilterObj && p.scheduleId) return p.scheduleId === scheduleFilterObj.id;
+          return true;
         });
       const filteredClassSales = filterClassSalesByDateRange(student.dailyClassSales, startDate, endDate)
         .filter((s) => {
@@ -197,6 +206,9 @@ export async function GET(request: NextRequest) {
           return s.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline);
         })
         .filter((s) => {
+          // Si la clase quedó vinculada a un horario concreto, exigir coincidencia exacta
+          // (antes se comparaba solo por día de la semana y se mezclaban horarios).
+          if (scheduleFilterObj && s.scheduleId) return s.scheduleId === scheduleFilterObj.id;
           // Si se filtra por un horario concreto, exigir el mismo dÃ­a de la semana
           if (!scheduleFilterObj) return true;
           const dayMap: Record<string, string> = {
@@ -249,6 +261,7 @@ export async function GET(request: NextRequest) {
         estadoPago: getPaymentStatus(student.monthlyPayments),
         monthlyPayments: filteredPayments.map((p) => ({
           id: p.id,
+          scheduleId: p.scheduleId ?? null,
           discipline: p.discipline,
           disciplines: p.disciplines,
           month: p.monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" }),
@@ -262,6 +275,7 @@ export async function GET(request: NextRequest) {
         })),
         dailyClassSales: filteredClassSales.map((s) => ({
           id: s.id,
+          scheduleId: s.scheduleId ?? null,
           discipline: s.discipline,
           classDate: s.classDate.toISOString().split("T")[0],
           amount: s.amount,
@@ -282,19 +296,27 @@ export async function GET(request: NextRequest) {
     // Si se filtra por horario, se respeta el dÃ­a de la semana del horario,
     // pero no se excluyen todas (un walk-in puede caer en el bloque correcto).
     if (scheduleFilterObj) {
+      // Descartar ventas vinculadas a otro horario distinto del filtrado
+      filteredOrphanClassSales = filteredOrphanClassSales.filter((s) => {
+        if (s.scheduleId) return s.scheduleId === scheduleFilterObj.id;
+        return true;
+      });
       const dayMap: Record<string, string> = {
         LUNES: "1", MARTES: "2", MIERCOLES: "3", JUEVES: "4",
         VIERNES: "5", SABADO: "6", DOMINGO: "0",
       };
       const dow = dayMap[scheduleFilterObj.dayOfWeek];
       if (dow !== undefined) {
-        filteredOrphanClassSales = filteredOrphanClassSales.filter(
-          (s) => new Date(s.classDate).getDay().toString() === dow
-        );
+        filteredOrphanClassSales = filteredOrphanClassSales.filter((s) => {
+          // Las ventas ya vinculadas al horario filtrado no se vuelven a filtrar por día
+          if (s.scheduleId) return true;
+          return new Date(s.classDate).getDay().toString() === dow;
+        });
       }
     }
     const clasesSinAlumno = filteredOrphanClassSales.map((s) => ({
       id: s.id,
+      scheduleId: s.scheduleId ?? null,
       attendeeName: s.attendeeName || "Sin nombre",
       discipline: s.discipline,
       classDate: s.classDate.toISOString().split("T")[0],
@@ -354,6 +376,7 @@ export async function GET(request: NextRequest) {
             blockName: s.blockName,
           })),
           paymentId: payment.id,
+          paymentScheduleId: payment.scheduleId ?? null,
           discipline: payment.discipline,
           disciplines: payment.disciplines || "",
           month: payment.monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" }),

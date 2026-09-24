@@ -99,15 +99,60 @@ jobs:
                   cp /tmp/dev.db.backup ~/weichafe-standalone/prisma/dev.db
                   rm -f /tmp/dev.db.backup
                 fi
+
+                # Respaldo versionado de la base antes de cada deploy (se conservan los ultimos 10)
+                sudo mkdir -p /var/weichafe/backups
+                if [ -f ~/weichafe-standalone/prisma/dev.db ]; then
+                  sudo cp ~/weichafe-standalone/prisma/dev.db "/var/weichafe/backups/dev-$(date +%Y%m%d-%H%M%S).db"
+                  sudo sh -c "ls -1t /var/weichafe/backups | tail -n +11 | xargs -r -I{} rm -f /var/weichafe/backups/{}"
+                fi
+
+                # Secretos persistentes generados en el servidor.
+                # Antes AUTH_SECRET estaba escrito en este workflow y era visible en
+                # GitHub: cualquiera con acceso al repo podia firmar sesiones validas.
+                if [ ! -f /var/weichafe/auth.env ]; then
+                  printf "AUTH_SECRET=%s\n" "$(head -c 48 /dev/urandom | base64 | tr -d "\n=")" | sudo tee /var/weichafe/auth.env >/dev/null
+                  sudo chmod 600 /var/weichafe/auth.env
+                fi
+                # Codigo maestro para /recovery (recuperar acceso sin soporte externo)
+                if [ ! -f /var/weichafe/recovery.env ]; then
+                  printf "RECOVERY_CODE=%s\n" "$(head -c 200 /dev/urandom | tr -dc "A-Za-z0-9" | head -c 24)" | sudo tee /var/weichafe/recovery.env >/dev/null
+                  sudo chmod 600 /var/weichafe/recovery.env
+                fi
+                sudo chown -R ec2-user:ec2-user /var/weichafe/backups
                 
                 # Aplicar migraciones
                 cd ~/weichafe-standalone
-                DATABASE_URL="file:/home/ec2-user/weichafe-standalone/prisma/dev.db" npx prisma migrate deploy --schema=./prisma/schema.prisma
+                DB_URL="file:/home/ec2-user/weichafe-standalone/prisma/dev.db"
+
+                # NOTA: la migracion 20260723114800_add_schedule_table usaba
+                # "ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY", que SQLite no
+                # soporta. Quedaba marcada como fallida y con `set -e` el deploy se
+                # abortaba antes de reiniciar el servicio (los cambios nunca llegaban
+                # a la web). Ahora, si migrate deploy falla, se limpian las
+                # migraciones fallidas y se reintenta.
+                if ! DATABASE_URL="$DB_URL" npx prisma migrate deploy --schema=./prisma/schema.prisma; then
+                  echo "--- migrate deploy fallo: reparando migraciones fallidas ---"
+                  if [ -f scripts/list-failed-migrations.cjs ]; then
+                    for MIG in $(DATABASE_URL="$DB_URL" node scripts/list-failed-migrations.cjs); do
+                      echo "Marcando como rolled-back: $MIG"
+                      DATABASE_URL="$DB_URL" npx prisma migrate resolve --rolled-back "$MIG" || true
+                    done
+                  fi
+                  echo "--- Reintentando migrate deploy ---"
+                  DATABASE_URL="$DB_URL" npx prisma migrate deploy --schema=./prisma/schema.prisma
+                fi
 
                 # Regularizar ventas de clase diaria huérfanas (vincular por nombre de alumno)
                 if [ -f scripts/regularize-orphan-class-sales.cjs ]; then
                   echo "--- Regularizando ventas huerfanas ---"
-                  DATABASE_URL="file:/home/ec2-user/weichafe-standalone/prisma/dev.db" node scripts/regularize-orphan-class-sales.cjs || echo "Regularizacion no critica, continuando"
+                  DATABASE_URL="$DB_URL" node scripts/regularize-orphan-class-sales.cjs || echo "Regularizacion no critica, continuando"
+                fi
+
+                # Cargar horarios base en la BD si la tabla esta vacia
+                if [ -f scripts/import-schedules.cjs ]; then
+                  echo "--- Importando horarios base ---"
+                  DATABASE_URL="$DB_URL" node scripts/import-schedules.cjs || echo "Import de horarios no critico, continuando"
                 fi
                 
                 # Configurar servicio systemd
@@ -124,7 +169,8 @@ jobs:
                   "Environment=PORT=3000" \
                   "Environment=DATABASE_URL=file:/home/ec2-user/weichafe-standalone/prisma/dev.db" \
                   "Environment=UPLOAD_DIR=/var/weichafe/uploads" \
-                  "Environment=AUTH_SECRET=weichafe-prod-secret-key-32chars-min-len!!" \
+                  "EnvironmentFile=-/var/weichafe/auth.env" \
+                  "EnvironmentFile=-/var/weichafe/recovery.env" \
                   "ExecStart=/usr/bin/node server.js" \
                   "Restart=always" \
                   "RestartSec=5" \

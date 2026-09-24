@@ -1,5 +1,7 @@
 -- CreateTable
-CREATE TABLE "Schedule" (
+-- IF NOT EXISTS: el intento anterior de esta migracion ya creo la tabla antes de
+-- fallar con el ADD CONSTRAINT, asi que al re-aplicarla no debe volver a crearla.
+CREATE TABLE IF NOT EXISTS "Schedule" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "discipline" TEXT NOT NULL,
     "dayOfWeek" TEXT NOT NULL,
@@ -11,7 +13,11 @@ CREATE TABLE "Schedule" (
 );
 
 -- CreateIndex
-CREATE INDEX "Schedule_dayOfWeek_startTime_idx" ON "Schedule"("dayOfWeek", "startTime");
+CREATE INDEX IF NOT EXISTS "Schedule_dayOfWeek_startTime_idx" ON "Schedule"("dayOfWeek", "startTime");
 
--- AddForeignKey
-ALTER TABLE "Student" ADD CONSTRAINT "Student_scheduleId_fkey" FOREIGN KEY ("scheduleId") REFERENCES "Schedule"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- NOTA: la relacion Student.scheduleId -> Schedule.id NO se declara aqui porque
+-- SQLite no soporta "ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY". Esa
+-- sentencia hacia fallar la migracion completa (error P3018) y con ello el
+-- deploy quedaba abortado antes de reiniciar el servicio. La columna scheduleId
+-- ya existe (migracion 20260709023302) y Prisma Client resuelve la relacion a
+-- nivel de aplicacion.

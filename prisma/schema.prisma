@@ -58,6 +58,7 @@ model Student {
 model MonthlyPayment {
   id            String        @id @default(cuid())
   studentId     String
+  scheduleId    String?       // Horario de clase asociado al pago (opcional)
   discipline    Discipline
   disciplines   String?       // Multi-disciplina separada por coma (ej: "MMA,BJJ")
   status        MonthlyStatus @default(PAGADO)
@@ -68,17 +69,20 @@ model MonthlyPayment {
   notes         String?
   createdAt     DateTime      @default(now())
 
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  receipt Receipt?
+  student  Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  receipt  Receipt?
 
   @@index([studentId, monthCovered])
   @@index([paidAt])
   @@index([createdAt])
+  @@index([scheduleId])
 }
 
 model DailyClassSale {
   id            String        @id @default(cuid())
   studentId     String?
+  scheduleId    String?       // Horario de la clase vendida (opcional)
   attendeeName  String?
   discipline    String        // Ahora es String para soportar múltiples disciplinas (ej: "MMA,BJJ")
   classDate     DateTime
@@ -87,10 +91,12 @@ model DailyClassSale {
   notes         String?
   createdAt     DateTime      @default(now())
 
-  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  receipt Receipt?
+  student  Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  receipt  Receipt?
 
   @@index([classDate])
+  @@index([scheduleId])
 }
 
 model Receipt {
@@ -133,8 +139,14 @@ model Schedule {
   startTime   String
   endTime     String
   blockName   String
+  location    String?  // Sala o espacio físico (opcional)
+  isActive    Boolean  @default(true)  // Permite ocultar horarios sin borrarlos
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  students Student[]
+  students        Student[]
+  monthlyPayments MonthlyPayment[]
+  dailyClassSales DailyClassSale[]
+
+  @@index([discipline, dayOfWeek, startTime])
 }

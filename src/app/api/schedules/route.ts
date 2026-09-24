@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
+function pickString(raw: unknown): string | null {
+  const value = String(raw ?? "").trim();
+  return value.length > 0 ? value : null;
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) {
@@ -41,6 +46,9 @@ export async function POST(request: Request) {
           startTime: schedule.startTime,
           endTime: schedule.endTime,
           blockName: schedule.blockName,
+          // location e isActive existían en el formulario pero no se guardaban
+          location: pickString(schedule.location),
+          isActive: schedule.isActive !== false,
         },
       });
       return NextResponse.json({ success: true, schedule: newSchedule });
@@ -53,6 +61,8 @@ export async function POST(request: Request) {
           startTime: schedule.startTime,
           endTime: schedule.endTime,
           blockName: schedule.blockName,
+          location: pickString(schedule.location),
+          isActive: schedule.isActive !== false,
         },
       });
       return NextResponse.json({ success: true, schedule: updated });

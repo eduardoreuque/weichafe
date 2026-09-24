@@ -3,132 +3,81 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
-import { readFileSync } from "fs";
-import { join } from "path";
-
-const PAYMENT_SCHEDULES_FILE = join(process.cwd(), "public", "payment-schedules.json");
-const CLASS_SCHEDULES_FILE = join(process.cwd(), "public", "class-schedules.json");
 
 export default async function StudentsBySchedulePage() {
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.role !== "ADMIN") redirect("/");
 
-  // Cargar todas las relaciones de horarios
-  let paymentSchedules: Record<string, string> = {};
-  let classSchedules: Record<string, string> = {};
+  // Horarios desde la BD. Antes se leían de public/schedules.json, que se
+  // resetea en cada deploy y no incluía los horarios creados desde el panel.
+  const schedules = await prisma.schedule.findMany({
+    where: { isActive: true },
+    orderBy: [{ discipline: "asc" }, { startTime: "asc" }],
+  });
 
-  try {
-    const paymentData = readFileSync(PAYMENT_SCHEDULES_FILE, "utf-8");
-    paymentSchedules = JSON.parse(paymentData);
-  } catch (error) {
-    console.error("Error loading payment schedules:", error);
-  }
-
-  try {
-    const classData = readFileSync(CLASS_SCHEDULES_FILE, "utf-8");
-    classSchedules = JSON.parse(classData);
-  } catch (error) {
-    console.error("Error loading class schedules:", error);
-  }
-
-  // Obtener todos los horarios desde el archivo JSON
-  let schedules: any[] = [];
-  try {
-    const schedulesData = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
-    const schedulesJson = JSON.parse(schedulesData);
-    schedules = Object.values(schedulesJson).filter((s: any) => s.isActive !== false);
-    schedules.sort((a: any, b: any) => {
-      const dayOrder = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
-      const dayCompare = dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
-      if (dayCompare !== 0) return dayCompare;
-      return a.startTime.localeCompare(b.startTime);
-    });
-  } catch (error) {
-    console.error("Error loading schedules:", error);
-  }
-
-  // Cargar horarios de alumnos
-  let studentSchedulesData: Record<string, string[]> = {};
-  try {
-    const studentSchedulesFile = readFileSync(join(process.cwd(), "public", "student-schedules.json"), "utf-8");
-    studentSchedulesData = JSON.parse(studentSchedulesFile);
-  } catch (error) {
-    console.error("Error loading student schedules:", error);
-  }
-
-  // Obtener todos los alumnos con horario asignado
+  // Alumnos con horario asignado
   const studentsWithSchedule = await prisma.student.findMany({
     where: { scheduleId: { not: null } },
-    include: { 
-      monthlyPayments: { orderBy: { monthCovered: "desc" }, take: 5 },
-      dailyClassSales: { orderBy: { classDate: "desc" }, take: 5 }
-    },
+    orderBy: { fullName: "asc" },
   });
 
-  // Agrupar alumnos por horario (tanto scheduleId principal como horarios del JSON)
   const studentsBySchedule: Record<string, typeof studentsWithSchedule> = {};
   studentsWithSchedule.forEach((student) => {
-    // Agregar por scheduleId principal
-    if (student.scheduleId) {
-      if (!studentsBySchedule[student.scheduleId]) {
-        studentsBySchedule[student.scheduleId] = [];
-      }
-      if (!studentsBySchedule[student.scheduleId].find(s => s.id === student.id)) {
-        studentsBySchedule[student.scheduleId].push(student);
-      }
+    if (!student.scheduleId) return;
+    if (!studentsBySchedule[student.scheduleId]) {
+      studentsBySchedule[student.scheduleId] = [];
     }
-    
-    // Agregar por horarios del JSON
-    const studentScheduleIds = studentSchedulesData[student.id] || [];
-    studentScheduleIds.forEach(scheduleId => {
-      if (!studentsBySchedule[scheduleId]) {
-        studentsBySchedule[scheduleId] = [];
-      }
-      if (!studentsBySchedule[scheduleId].find(s => s.id === student.id)) {
-        studentsBySchedule[scheduleId].push(student);
-      }
-    });
+    studentsBySchedule[student.scheduleId].push(student);
   });
 
-  // Obtener todos los pagos con sus horarios
-  const payments = await prisma.monthlyPayment.findMany({
-    where: {
-      id: { in: Object.keys(paymentSchedules) },
-    },
-    include: { student: true },
-  });
+  // Actividad: pagos y clases recientes, cada uno vinculado a su horario
+  const [payments, classes] = await Promise.all([
+    prisma.monthlyPayment.findMany({
+      select: {
+        id: true,
+        scheduleId: true,
+        monthCovered: true,
+        status: true,
+        amount: true,
+        student: { select: { id: true, fullName: true, scheduleId: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    }),
+    prisma.dailyClassSale.findMany({
+      select: {
+        id: true,
+        scheduleId: true,
+        classDate: true,
+        amount: true,
+        attendeeName: true,
+        student: { select: { id: true, fullName: true, scheduleId: true } },
+      },
+      orderBy: { classDate: "desc" },
+      take: 300,
+    }),
+  ]);
 
-  // Obtener todas las clases con sus horarios
-  const classes = await prisma.dailyClassSale.findMany({
-    where: {
-      id: { in: Object.keys(classSchedules) },
-    },
-    include: { student: true },
-  });
-
-  // Agrupar pagos por horario
+  // Se agrupa por el horario del registro y, si no tiene, por el del alumno
   const paymentsBySchedule: Record<string, typeof payments> = {};
   payments.forEach((payment) => {
-    const scheduleId = paymentSchedules[payment.id];
-    if (scheduleId) {
-      if (!paymentsBySchedule[scheduleId]) {
-        paymentsBySchedule[scheduleId] = [];
-      }
-      paymentsBySchedule[scheduleId].push(payment);
+    const sid = payment.scheduleId || payment.student?.scheduleId || null;
+    if (!sid) return;
+    if (!paymentsBySchedule[sid]) {
+      paymentsBySchedule[sid] = [];
     }
+    paymentsBySchedule[sid].push(payment);
   });
 
-  // Agrupar clases por horario
   const classesBySchedule: Record<string, typeof classes> = {};
   classes.forEach((cls) => {
-    const scheduleId = classSchedules[cls.id];
-    if (scheduleId) {
-      if (!classesBySchedule[scheduleId]) {
-        classesBySchedule[scheduleId] = [];
-      }
-      classesBySchedule[scheduleId].push(cls);
+    const sid = cls.scheduleId || cls.student?.scheduleId || null;
+    if (!sid) return;
+    if (!classesBySchedule[sid]) {
+      classesBySchedule[sid] = [];
     }
+    classesBySchedule[sid].push(cls);
   });
 
   return (

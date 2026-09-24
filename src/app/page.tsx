@@ -21,6 +21,7 @@ import { PaymentForm } from "@/components/payment-form";
 import { ClassForm } from "@/components/class-form";
 import { StudentDeleteButton } from "@/components/student-delete-button";
 import { CollapsibleSection } from "@/components/collapsible-section";
+import { AppNav } from "@/components/app-nav";
 
 const monthlyFees = [
   { name: "Boxeo y MMA mujeres", amount: "$44.990" },
@@ -128,6 +129,8 @@ export default async function Home() {
       </div>
       
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <AppNav session={session} active="/" />
+
         <header className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-lg backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4">
@@ -289,7 +292,7 @@ export default async function Home() {
           </article>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
+        <section id="nuevo-alumno" className="grid scroll-mt-24 gap-4 lg:grid-cols-3">
           <StudentForm />
           <PaymentForm students={students.map((s) => ({ id: s.id, fullName: s.fullName }))} />
           <ClassForm students={students.map((s) => ({ id: s.id, fullName: s.fullName }))} />

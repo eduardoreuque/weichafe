@@ -3,10 +3,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { parseLocalDate } from "@/lib/helpers";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-
-const STUDENT_SCHEDULES_FILE = join(process.cwd(), "public", "student-schedules.json");
 
 function normalizeString(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
@@ -60,26 +56,13 @@ export async function POST(request: Request) {
       },
     });
 
-    // Guardar horarios seleccionados (solo en desarrollo)
+    // Guardar horarios seleccionados: el primero queda como horario principal (BD)
     const schedules = Array.isArray(body.schedules) ? body.schedules : [];
     if (schedules.length > 0) {
-      // Guardar el primer horario como scheduleId principal en DB
       await prisma.student.update({
         where: { id: student.id },
-        data: { scheduleId: schedules[0] },
+        data: { scheduleId: String(schedules[0]) },
       });
-      
-      // Guardar todos los horarios en JSON solo en desarrollo
-      if (process.env.NODE_ENV !== "production") {
-        try {
-          const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-          const studentSchedules = JSON.parse(data);
-          studentSchedules[student.id] = schedules;
-          writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
-        } catch (error) {
-          console.error("Error updating student schedules JSON:", error);
-        }
-      }
     }
 
     revalidatePath("/");
@@ -119,29 +102,28 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ ok: false, error: "Alumno no encontrado." }, { status: 404 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.dailyClassSale.deleteMany({
-        where: { studentId },
-      });
+    // Protección del historial contable: si el alumno tiene mensualidades
+    // registradas, eliminarlo borraría esos pagos y sus comprobantes.
+    // En ese caso se recomienda marcarlo Inactivo.
+    const paymentCount = await prisma.monthlyPayment.count({ where: { studentId } });
 
-      await tx.student.delete({
-        where: { id: studentId },
-      });
-    });
-
-    // Eliminar horarios del alumno (solo en desarrollo)
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const data = readFileSync(STUDENT_SCHEDULES_FILE, "utf-8");
-        const studentSchedules = JSON.parse(data);
-        delete studentSchedules[studentId];
-        writeFileSync(STUDENT_SCHEDULES_FILE, JSON.stringify(studentSchedules, null, 2));
-      } catch (error) {
-        console.error("Error deleting student schedules:", error);
-      }
+    if (paymentCount > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Este alumno tiene mensualidades registradas. Para no perder el historial de pagos, edítalo y déjalo como Inactivo en lugar de eliminarlo.",
+        },
+        { status: 409 }
+      );
     }
 
+    // Las ventas de clase diaria NO se borran: la relación es SetNull, así que
+    // quedan como ventas sin alumno vinculado y la caja del mes no se pierde.
+    await prisma.student.delete({ where: { id: studentId } });
+
     revalidatePath("/");
+    revalidatePath("/alumnos");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

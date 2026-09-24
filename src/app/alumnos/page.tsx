@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/login/actions";
+import { AppNav } from "@/components/app-nav";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -56,6 +57,8 @@ export default async function StudentsPage({
       </div>
       
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <AppNav session={session} active="/alumnos" />
+
         <header className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-lg backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -97,7 +100,7 @@ export default async function StudentsPage({
             </h2>
             {session.role === "ADMIN" && (
               <Link
-                href="/alumnos/nuevo"
+                href="/#nuevo-alumno"
                 className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
               >
                 + Nuevo Alumno

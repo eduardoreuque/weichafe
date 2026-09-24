@@ -17,7 +17,7 @@ export function StudentDeleteButton({ studentId, studentName }: StudentDeleteBut
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      `Se eliminara el alumno ${studentName} y su historial asociado. Esta accion no se puede deshacer.`
+      `Se eliminara el alumno ${studentName}. Las ventas de clase diaria se conservan. Si el alumno tiene mensualidades registradas el sistema no permitira eliminarlo (usa Inactivo para conservar el historial).`
     );
 
     if (!confirmed) return;
