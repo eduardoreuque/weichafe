@@ -1,0 +1,45 @@
+name: Diagnostico pagos
+
+# Ejecución manual, SOLO LECTURA: revisa la base de producción y muestra todo lo
+# registrado para los alumnos que coincidan con la búsqueda (pagos, clases,
+# comprobantes, horarios, duplicados, etc.).
+on:
+  workflow_dispatch:
+    inputs:
+      search:
+        description: "Nombres o RUT a buscar (separados por coma)"
+        required: true
+        default: "LEANDRO,QUIROZ"
+
+jobs:
+  diagnose:
+    name: Diagnostico de pagos (solo lectura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar clave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/weichafe-ec2
+          chmod 600 ~/.ssh/weichafe-ec2
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Copiar script de diagnostico al servidor
+        run: |
+          scp -i ~/.ssh/weichafe-ec2 -o StrictHostKeyChecking=no \
+              scripts/diagnose-payments.cjs \
+              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/weichafe-standalone/scripts/diagnose-payments.cjs
+
+      - name: Ejecutar diagnostico
+        run: |
+          ssh -i ~/.ssh/weichafe-ec2 -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "bash -s" <<REMOTE
+          set -e
+          cd /home/ec2-user/weichafe-standalone
+          export DATABASE_URL="file:/home/ec2-user/weichafe-standalone/prisma/dev.db"
+          export SEARCH="${{ github.event.inputs.search }}"
+          node scripts/diagnose-payments.cjs
+          REMOTE
