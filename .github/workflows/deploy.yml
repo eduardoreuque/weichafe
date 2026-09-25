@@ -154,6 +154,12 @@ jobs:
                   echo "--- Importando horarios base ---"
                   DATABASE_URL="$DB_URL" node scripts/import-schedules.cjs || echo "Import de horarios no critico, continuando"
                 fi
+
+                # Backfill de horarios en pagos y ventas sin vincular
+                if [ -f scripts/backfill-schedules.cjs ]; then
+                  echo "--- Ejecutando backfill de horarios en pagos y ventas ---"
+                  DATABASE_URL="$DB_URL" node scripts/backfill-schedules.cjs || echo "Backfill no critico, continuando"
+                fi
                 
                 # Configurar servicio systemd
                 printf "%s\n" \

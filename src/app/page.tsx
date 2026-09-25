@@ -116,6 +116,20 @@ export default async function Home() {
     take: 20,
   });
 
+  const latestDailySales = await prisma.dailyClassSale.findMany({
+    orderBy: {
+      classDate: "desc",
+    },
+    include: {
+      student: {
+        select: {
+          fullName: true,
+        },
+      },
+    },
+    take: 20,
+  });
+
   return (
     <main className="relative min-h-screen px-4 py-8 text-slate-900 sm:px-6 lg:px-10">
       {/* Fondo izquierdo - pegado al borde */}
@@ -493,22 +507,23 @@ export default async function Home() {
           <article className="rounded-2xl border border-black/10 bg-white/90 p-5 shadow-sm">
             <h2 className="text-xl font-bold">Ventas por clase diaria</h2>
             <ul className="mt-3 space-y-2 text-sm">
-              {students.flatMap((student) => student.dailyClassSales).length === 0 ? (
+              {latestDailySales.length === 0 ? (
                 <li className="text-slate-600">No hay ventas de clases diarias aun.</li>
               ) : null}
-              {students
-                .flatMap((student) =>
-                  student.dailyClassSales.map((sale) => ({
-                    ...sale,
-                    studentName: student.fullName,
-                  })),
-                )
-                .sort((a, b) => b.classDate.getTime() - a.classDate.getTime())
-                .slice(0, 20)
-                .map((sale) => (
+              {latestDailySales.map((sale) => {
+                const displayName = sale.student?.fullName || sale.attendeeName || "Sin nombre";
+                const isOrphan = !sale.student && sale.attendeeName;
+                return (
                   <li key={sale.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 p-3">
                     <div>
-                      <p className="font-medium">{sale.studentName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{displayName}</p>
+                        {isOrphan && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Pase diario
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-600">
                         {disciplineLabel(sale.discipline)} - {toDateLabel(sale.classDate)}
                       </p>
@@ -516,7 +531,8 @@ export default async function Home() {
                     </div>
                     <p className="font-semibold">${sale.amount.toLocaleString("es-CL")}</p>
                   </li>
-                ))}
+                );
+              })}
             </ul>
           </article>
         </section>

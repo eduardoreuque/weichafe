@@ -48,6 +48,22 @@ export async function GET(request: NextRequest) {
       orderBy: { fullName: "asc" },
     });
 
+    // Alumnos inactivos que tienen mensualidades: si el filtro "solo activos"
+    // está aplicado, se informa el total para que no parezca que falta
+    // información (caso reportado: pagos registrados que "no aparecían" porque
+    // la ficha del alumno estaba marcada como inactiva).
+    let hiddenInactiveCount = 0;
+    if (onlyActive) {
+      const inactiveWhere: any = { isActive: false, monthlyPayments: { some: {} } };
+      if (searchQuery.trim()) {
+        inactiveWhere.OR = [
+          { fullName: { contains: searchQuery.trim() } },
+          { rut: { contains: searchQuery.trim() } },
+        ];
+      }
+      hiddenInactiveCount = await prisma.student.count({ where: inactiveWhere });
+    }
+
     // Ventas de clases diarias registradas sin alumno vinculado (nombre libre / "walk-in")
     // Estas no aparecen bajo ningÃºn Student, por eso se consultan y reportan aparte.
     const orphanWhere: any = { studentId: null };
@@ -340,6 +356,8 @@ export async function GET(request: NextRequest) {
       alumnosAlDia: reportData.filter((s: any) => s.estadoPago === "AL_DIA").length,
       alumnosConDeuda: reportData.filter((s: any) => s.estadoPago === "CON_DEUDA").length,
       alumnosSinPagos: reportData.filter((s: any) => s.estadoPago === "SIN_PAGOS").length,
+      // Alumnos con pagos que quedaron fuera por el filtro "solo activos"
+      alumnosInactivosOcultos: hiddenInactiveCount,
     };
 
     // Pagos detallados planos para exportar

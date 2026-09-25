@@ -88,6 +88,7 @@ interface Resumen {
   alumnosAlDia: number;
   alumnosConDeuda: number;
   alumnosSinPagos: number;
+  alumnosInactivosOcultos?: number;
 }
 
 const STATUS_OPTIONS = [
@@ -147,7 +148,7 @@ export default function ReportesPage() {
   const [filterSchedule, setFilterSchedule] = useState("");
   const [filterDiscipline, setFilterDiscipline] = useState("");
   const [filterPayment, setFilterPayment] = useState("");
-  const [onlyActive, setOnlyActive] = useState(true);
+  const [onlyActive, setOnlyActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch] = useDebounce(searchQuery, 300);
   const [startDate, setStartDate] = useState("");
@@ -407,10 +408,25 @@ export default function ReportesPage() {
                   onChange={(e) => setOnlyActive(e.target.checked)}
                   className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                Solo activos
+                Solo alumnos activos
               </label>
             </div>
           </div>
+
+          {onlyActive && (resumen?.alumnosInactivosOcultos ?? 0) > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-900">
+                Hay {resumen?.alumnosInactivosOcultos} alumno(s) marcados como inactivos que tienen
+                mensualidades registradas. Con este filtro activado sus pagos NO se muestran.
+              </p>
+              <button
+                onClick={() => setOnlyActive(false)}
+                className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700"
+              >
+                Mostrar todos los alumnos
+              </button>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-2">
