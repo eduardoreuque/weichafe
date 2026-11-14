@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { parseLocalDate } from "@/lib/helpers";
+import { isPlausibleDate, parseLocalDate } from "@/lib/helpers";
+import { normalizeIdList, scheduleIdsExist } from "@/lib/schedules";
 
 function normalizeString(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
@@ -34,12 +35,25 @@ export async function POST(request: Request) {
   }
 
   const birthDate = parseLocalDate(birthDateRaw);
-  if (Number.isNaN(birthDate.getTime())) {
+  if (!isPlausibleDate(birthDate, 1900, new Date().getFullYear())) {
     return NextResponse.json({ ok: false, error: "La fecha de nacimiento no es valida" }, { status: 400 });
   }
 
+  // Horarios a los que asistirá: puede ser más de una disciplina y bloque.
+  const scheduleIds = normalizeIdList(body.schedules);
+  const singleScheduleId = normalizeString(body.scheduleId);
+  if (scheduleIds.length === 0 && singleScheduleId) scheduleIds.push(singleScheduleId);
+
   try {
-    const student = await prisma.student.create({
+    if (!(await scheduleIdsExist(scheduleIds))) {
+      return NextResponse.json(
+        { ok: false, error: "Uno de los horarios seleccionados ya no existe. Recarga la página e inténtalo de nuevo." },
+        { status: 400 }
+      );
+    }
+
+    // Alumno y horarios se guardan juntos: si algo falla no queda nada a medias.
+    await prisma.student.create({
       data: {
         fullName,
         birthDate,
@@ -53,19 +67,14 @@ export async function POST(request: Request) {
         notes: normalizeString(body.notes),
         photoUrl: normalizeString(body.photoUrl),
         isActive: body.isActive !== false,
+        scheduleId: scheduleIds[0] ?? null,
+        schedules: { create: scheduleIds.map((scheduleId) => ({ scheduleId })) },
       },
     });
 
-    // Guardar horarios seleccionados: el primero queda como horario principal (BD)
-    const schedules = Array.isArray(body.schedules) ? body.schedules : [];
-    if (schedules.length > 0) {
-      await prisma.student.update({
-        where: { id: student.id },
-        data: { scheduleId: String(schedules[0]) },
-      });
-    }
-
     revalidatePath("/");
+    revalidatePath("/alumnos");
+    revalidatePath("/admin/alumnos-por-horario");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

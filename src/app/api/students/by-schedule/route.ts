@@ -5,10 +5,12 @@ import { getSession } from "@/lib/auth";
 /**
  * Alumnos por horario.
  *
- * Antes leía public/schedules.json + public/student-schedules.json, archivos que
- * se resetean en cada deploy, por lo que la búsqueda devolvía vacío en producción.
- * Ahora se resuelve todo contra la base de datos: el horario (por id o por
- * disciplina/día/hora) y los alumnos con ese scheduleId asignado.
+ * El bloque se identifica por su id. La búsqueda por disciplina/día/hora se
+ * mantiene por compatibilidad, pero se rechaza si coincide con más de un
+ * bloque (ej. "MMA lunes 19:00" existe como Adultos y como Kids): antes se
+ * tomaba el primero que apareciera.
+ *
+ * Los alumnos salen de StudentSchedule (un alumno puede estar en varios bloques).
  */
 export async function GET(request: Request) {
   const session = await getSession();
@@ -24,28 +26,36 @@ export async function GET(request: Request) {
 
   if (!scheduleIdParam && (!discipline || !dayOfWeek || !startTime)) {
     return NextResponse.json(
-      { error: "Faltan parámetros: discipline, dayOfWeek, startTime" },
+      { error: "Falta el horario (scheduleId) o discipline, dayOfWeek y startTime" },
       { status: 400 }
     );
   }
 
   try {
-    const schedule = scheduleIdParam
-      ? await prisma.schedule.findUnique({ where: { id: scheduleIdParam } })
-      : await prisma.schedule.findFirst({
-          where: {
-            discipline: discipline ?? undefined,
-            dayOfWeek: dayOfWeek ?? undefined,
-            startTime: startTime ?? undefined,
-          },
-        });
+    let schedule: { id: string } | null = null;
+    if (scheduleIdParam) {
+      schedule = await prisma.schedule.findUnique({ where: { id: scheduleIdParam }, select: { id: true } });
+    } else {
+      const matches = await prisma.schedule.findMany({
+        where: { discipline: discipline!, dayOfWeek: dayOfWeek!, startTime: startTime! },
+        select: { id: true },
+        take: 2,
+      });
+      if (matches.length > 1) {
+        return NextResponse.json(
+          { error: "Hay más de un bloque con esa disciplina, día y hora. Indica el horario exacto (scheduleId)." },
+          { status: 400 }
+        );
+      }
+      schedule = matches[0] ?? null;
+    }
 
     if (!schedule) {
       return NextResponse.json([]);
     }
 
     const students = await prisma.student.findMany({
-      where: { scheduleId: schedule.id },
+      where: { schedules: { some: { scheduleId: schedule.id } } },
       select: {
         id: true,
         fullName: true,

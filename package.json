@@ -22,6 +22,7 @@
     "collect:installers": "node scripts/collect-installers.cjs",
     "cost:estimate": "node scripts/cost-calculator.cjs",
     "lint": "eslint",
+    "test": "tsx --test src/lib/report-filters.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed"

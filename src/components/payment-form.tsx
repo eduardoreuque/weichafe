@@ -14,7 +14,7 @@ const DISCIPLINE_OPTIONS = [
 ];
 
 type StudentOption = { id: string; fullName: string };
-type Schedule = { id: string; discipline: string; dayOfWeek: string; startTime: string; endTime: string; blockName: string };
+type Schedule = { id: string; discipline: string; dayOfWeek: string; startTime: string; endTime: string; blockName: string; isActive?: boolean };
 
 export function PaymentForm({ students }: { students: StudentOption[] }) {
   const [state, setState] = useState<{ ok: boolean; error?: string } | null>(null);
@@ -32,7 +32,7 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
     try {
       const res = await fetch("/api/schedules");
       const data = await res.json();
-      setSchedules(data);
+      setSchedules(Array.isArray(data) ? data.filter((s: Schedule) => s.isActive !== false) : []);
     } catch (error) {
       console.error("Error loading schedules:", error);
     }
@@ -73,6 +73,7 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
 
       if (result.ok) {
         setFormKey((k) => k + 1);
+        setSelectedDiscipline("");
         router.refresh();
       }
     } catch {
@@ -130,17 +131,23 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
         </select>
 
         {selectedDiscipline && getFilteredSchedules().length > 0 && (
-          <select
-            name="scheduleId"
-            className="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-          >
-            <option value="">Horario (opcional)</option>
-            {getFilteredSchedules().map((schedule) => (
-              <option key={schedule.id} value={schedule.id}>
-                {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
-              </option>
-            ))}
-          </select>
+          <label className="text-xs text-slate-600">
+            Horario del pago
+            <select
+              name="scheduleId"
+              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="">Sin horario</option>
+              {getFilteredSchedules().map((schedule) => (
+                <option key={schedule.id} value={schedule.id}>
+                  {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-slate-500">
+              Un pago sin horario no aparece en los reportes por bloque: se informa aparte como &quot;sin horario&quot;.
+            </span>
+          </label>
         )}
 
         <label className="text-xs text-slate-600">
@@ -149,6 +156,8 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
             name="monthCovered"
             type="month"
             required
+            min="2000-01"
+            max="2100-12"
             className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </label>
@@ -176,6 +185,8 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
           <input
             name="paidAt"
             type="date"
+            min="2000-01-01"
+            max="2100-12-31"
             className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </label>

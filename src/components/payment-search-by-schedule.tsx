@@ -25,7 +25,8 @@ interface PaymentRow {
     id: string;
     fullName: string;
     rut: string | null;
-    scheduleId: string | null;
+    /** El alumno está asignado a este bloque. */
+    enrolledHere: boolean;
   };
 }
 
@@ -156,8 +157,8 @@ export function PaymentSearchBySchedule() {
                 <td className="px-4 py-3 text-xs text-slate-500">
                   {payment.scheduleId
                     ? "Pago vinculado al bloque"
-                    : payment.student.scheduleId
-                    ? "Por horario del alumno"
+                    : payment.student.enrolledHere
+                    ? "Sin horario (alumno asignado a este bloque)"
                     : "Sin horario vinculado"}
                 </td>
               </tr>
@@ -265,8 +266,8 @@ export function PaymentSearchBySchedule() {
                     Misma disciplina ({result.schedule.discipline}) sin horario vinculado
                   </h3>
                   <p className="text-sm text-slate-600">
-                    {result.unassigned.length} pago(s). Corresponden a fichas sin bloque asignado, por
-                    eso no se pueden clasificar en un horario exacto (antes quedaban invisibles).
+                    {result.unassigned.length} pago(s) registrados sin horario. No se puede saber a qué
+                    bloque pertenecen, por eso se listan aparte y no se suman al total del bloque.
                   </p>
                 </div>
                 <div className="text-right">

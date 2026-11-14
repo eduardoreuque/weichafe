@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
+import { Discipline } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { parseLocalDate } from "@/lib/helpers";
+import { isPlausibleDate, parseLocalDate } from "@/lib/helpers";
 
 /**
  * Pagos por horario.
  *
- * Devuelve dos grupos:
- *  - payments:   pagos vinculados al horario (por scheduleId del pago o porque
- *                el alumno tiene ese horario asignado).
- *  - unassigned: pagos de la MISMA disciplina que no tienen horario vinculado
- *                (ni el pago ni el alumno). Hoy son la gran mayoría, y antes
- *                quedaban invisibles: la vista parecía vacía aunque el pago
- *                existiera.
+ * Devuelve dos grupos que nunca se mezclan:
+ *  - payments:   pagos vinculados a ESTE bloque (scheduleId del pago). Antes se
+ *                sumaban además todos los pagos de los alumnos asignados al
+ *                bloque, aunque fueran de otra disciplina u otro horario.
+ *  - unassigned: pagos de la misma disciplina sin horario vinculado. No se puede
+ *                saber a qué bloque pertenecen, así que se muestran aparte.
  */
 export async function GET(request: Request) {
   const session = await getSession();
@@ -37,12 +37,15 @@ export async function GET(request: Request) {
     }
 
     // Rango de fechas sobre la fecha de pago (o de registro si no tiene paidAt)
-    const range: any = {};
+    const range: { gte?: Date; lte?: Date } = {};
     if (startDate) range.gte = parseLocalDate(startDate);
     if (endDate) {
       const end = parseLocalDate(endDate);
       end.setHours(23, 59, 59, 999);
       range.lte = end;
+    }
+    if ((range.gte && !isPlausibleDate(range.gte)) || (range.lte && !isPlausibleDate(range.lte))) {
+      return NextResponse.json({ error: "Rango de fechas inválido" }, { status: 400 });
     }
     const hasRange = Object.keys(range).length > 0;
     const dateFilter = hasRange
@@ -59,52 +62,40 @@ export async function GET(request: Request) {
       paidAt: true,
       paymentMethod: true,
       scheduleId: true,
-      student: { select: { id: true, fullName: true, rut: true, scheduleId: true } },
+      student: {
+        select: {
+          id: true,
+          fullName: true,
+          rut: true,
+          // Solo para indicar si el alumno está asignado a este bloque
+          schedules: { where: { scheduleId }, select: { scheduleId: true } },
+        },
+      },
     } as const;
 
-    // Alumnos asignados a este horario
-    const studentsFromDb = await prisma.student.findMany({
-      where: { scheduleId },
-      select: { id: true },
-    });
-    const studentIds = studentsFromDb.map((s) => s.id);
-
-    const assignedWhere: any = {
-      AND: [
-        {
-          OR: [
-            { scheduleId },
-            ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
-          ],
-        },
-        ...dateFilter,
-      ],
-    };
-
-    const payments = await prisma.monthlyPayment.findMany({
-      where: assignedWhere,
+    const rawPayments = await prisma.monthlyPayment.findMany({
+      where: { AND: [{ scheduleId }, ...dateFilter] },
       select,
       orderBy: { createdAt: "desc" },
     });
 
     // Pagos de la misma disciplina sin horario vinculado
-    let unassigned: typeof payments = [];
+    let rawUnassigned: typeof rawPayments = [];
     if (includeUnassigned) {
       try {
-        const unassignedWhere: any = {
-          AND: [
-            { scheduleId: null, student: { scheduleId: null } },
-            {
-              OR: [
-                { discipline: schedule.discipline },
-                { disciplines: { contains: schedule.discipline } },
-              ],
-            },
-            ...dateFilter,
-          ],
-        };
-        unassigned = await prisma.monthlyPayment.findMany({
-          where: unassignedWhere,
+        rawUnassigned = await prisma.monthlyPayment.findMany({
+          where: {
+            AND: [
+              { scheduleId: null },
+              {
+                OR: [
+                  { discipline: schedule.discipline as Discipline },
+                  { disciplines: { contains: schedule.discipline } },
+                ],
+              },
+              ...dateFilter,
+            ],
+          },
           select,
           orderBy: { createdAt: "desc" },
         });
@@ -112,9 +103,21 @@ export async function GET(request: Request) {
         // La disciplina del horario podría no coincidir con el enum (horarios
         // creados con nombre personalizado): no se rompe la consulta principal.
         console.error("No se pudieron cargar los pagos sin horario vinculado:", error);
-        unassigned = [];
+        rawUnassigned = [];
       }
     }
+
+    const toRow = (payment: (typeof rawPayments)[number]) => ({
+      ...payment,
+      student: {
+        id: payment.student.id,
+        fullName: payment.student.fullName,
+        rut: payment.student.rut,
+        enrolledHere: payment.student.schedules.length > 0,
+      },
+    });
+    const payments = rawPayments.map(toRow);
+    const unassigned = rawUnassigned.map(toRow);
 
     return NextResponse.json({
       schedule: {

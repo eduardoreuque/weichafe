@@ -1,7 +1,25 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { parseLocalDate } from "@/lib/helpers";
+import { calculateAge, isPlausibleDate, parseLocalDate } from "@/lib/helpers";
+import {
+  dateInRange,
+  enrolledInScope,
+  matchesPaymentStatus,
+  paymentReferenceDate,
+  paymentStateOf,
+  recordInScope,
+  recordIsUnlinkedForSchedule,
+  type ScopeFilters,
+} from "@/lib/report-filters";
+
+function toDay(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+function toMonth(date: Date): string {
+  return date.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+}
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
@@ -14,239 +32,115 @@ export async function GET(request: NextRequest) {
   const discipline = searchParams.get("discipline") || "";
   const paymentStatus = searchParams.get("paymentStatus") || "";
   const onlyActive = searchParams.get("onlyActive") !== "false";
-  const searchQuery = searchParams.get("q") || "";
+  const searchQuery = (searchParams.get("q") || "").trim();
   const startDate = searchParams.get("startDate") || "";
   const endDate = searchParams.get("endDate") || "";
 
-  try {
-    // Construir filtro base de estudiantes
-    const studentWhere: any = {};
-    if (onlyActive) studentWhere.isActive = true;
+  const start = startDate ? parseLocalDate(startDate) : null;
+  const end = endDate ? parseLocalDate(endDate) : null;
+  if ((start && !isPlausibleDate(start)) || (end && !isPlausibleDate(end))) {
+    return NextResponse.json({ ok: false, error: "Rango de fechas inválido" }, { status: 400 });
+  }
+  if (end) end.setHours(23, 59, 59, 999);
 
-    // Filtro por bÃºsqueda de nombre/RUT
-    if (searchQuery.trim()) {
-      studentWhere.OR = [
-        { fullName: { contains: searchQuery.trim() } },
-        { rut: { contains: searchQuery.trim() } },
-      ];
+  try {
+    const schedulesArr = await prisma.schedule.findMany({
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+    });
+    const schedulesById = new Map(schedulesArr.map((s) => [s.id, s]));
+    const disciplineBySchedule = new Map(schedulesArr.map((s) => [s.id, s.discipline]));
+
+    const scheduleFilter = scheduleId ? schedulesById.get(scheduleId) ?? null : null;
+    if (scheduleId && !scheduleFilter) {
+      return NextResponse.json({ ok: false, error: "Horario no encontrado" }, { status: 404 });
     }
 
-    // Obtener estudiantes
+    const filters: ScopeFilters = {
+      scheduleId: scheduleFilter?.id ?? "",
+      scheduleDiscipline: scheduleFilter?.discipline ?? "",
+      discipline,
+      start,
+      end,
+    };
+    const hasScope = Boolean(filters.scheduleId || filters.discipline);
+
+    const searchFilter = searchQuery
+      ? { OR: [{ fullName: { contains: searchQuery } }, { rut: { contains: searchQuery } }] }
+      : {};
+
     const students = await prisma.student.findMany({
-      where: studentWhere,
+      where: { ...(onlyActive ? { isActive: true } : {}), ...searchFilter },
       include: {
         monthlyPayments: {
           orderBy: { monthCovered: "desc" },
-          include: {
-            receipt: { select: { id: true, receiptNumber: true } },
-          },
+          include: { receipt: { select: { id: true, receiptNumber: true } } },
         },
-        dailyClassSales: {
-          orderBy: { classDate: "desc" },
-        },
+        dailyClassSales: { orderBy: { classDate: "desc" } },
+        schedules: { select: { scheduleId: true } },
       },
       orderBy: { fullName: "asc" },
     });
 
-    // Alumnos inactivos que tienen mensualidades: si el filtro "solo activos"
-    // está aplicado, se informa el total para que no parezca que falta
-    // información (caso reportado: pagos registrados que "no aparecían" porque
-    // la ficha del alumno estaba marcada como inactiva).
-    let hiddenInactiveCount = 0;
-    if (onlyActive) {
-      const inactiveWhere: any = { isActive: false, monthlyPayments: { some: {} } };
-      if (searchQuery.trim()) {
-        inactiveWhere.OR = [
-          { fullName: { contains: searchQuery.trim() } },
-          { rut: { contains: searchQuery.trim() } },
-        ];
-      }
-      hiddenInactiveCount = await prisma.student.count({ where: inactiveWhere });
-    }
+    // Alumnos inactivos con mensualidades: si el filtro "solo activos" está
+    // aplicado, se informa el total para que no parezca que falta información.
+    const hiddenInactiveCount = onlyActive
+      ? await prisma.student.count({
+          where: { isActive: false, monthlyPayments: { some: {} }, ...searchFilter },
+        })
+      : 0;
 
-    // Ventas de clases diarias registradas sin alumno vinculado (nombre libre / "walk-in")
-    // Estas no aparecen bajo ningÃºn Student, por eso se consultan y reportan aparte.
-    const orphanWhere: any = { studentId: null };
-    if (searchQuery.trim()) {
-      orphanWhere.attendeeName = { contains: searchQuery.trim() };
-    }
+    // Ventas de clase diaria sin alumno vinculado (nombre libre / "walk-in")
     const orphanClassSales = await prisma.dailyClassSale.findMany({
-      where: orphanWhere,
+      where: { studentId: null, ...(searchQuery ? { attendeeName: { contains: searchQuery } } : {}) },
       orderBy: { classDate: "desc" },
     });
 
-    // Cargar schedules desde BD (con fallback a JSON)
-    let schedulesArr: any[] = [];
-    try {
-      schedulesArr = await prisma.schedule.findMany({
-        orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
-      });
-    } catch {
-      // Fallback a JSON si la tabla no existe
-      const { readFileSync } = await import("fs");
-      const { join } = await import("path");
-      try {
-        const raw = readFileSync(join(process.cwd(), "public", "schedules.json"), "utf-8");
-        const parsed = JSON.parse(raw);
-        schedulesArr = Array.isArray(parsed) ? parsed : parsed.schedules || [];
-      } catch {}
-    }
+    // Registros sin horario de la disciplina del bloque filtrado. No se muestran
+    // dentro del bloque (no se puede saber a cuál pertenecen): se informan aparte.
+    const sinHorario = { pagos: 0, pagosMonto: 0, clases: 0, clasesMonto: 0 };
 
-    // Mapear schedules por ID
-    const schedulesById: Record<string, any> = {};
-    schedulesArr.forEach((s: any) => {
-      schedulesById[s.id] = s;
-    });
+    const rows = [];
+    for (const student of students) {
+      const enrolledIds = new Set(student.schedules.map((link) => link.scheduleId));
+      if (student.scheduleId) enrolledIds.add(student.scheduleId);
 
-    // Obtener schedules del estudiante desde su scheduleId en DB
-    function getStudentScheduleInfo(studentId: string, studentScheduleId: string | null) {
-      if (studentScheduleId && schedulesById[studentScheduleId]) {
-        return [schedulesById[studentScheduleId]];
+      const payments = student.monthlyPayments.filter(
+        (p) => recordInScope(p, filters) && dateInRange(paymentReferenceDate(p), filters)
+      );
+      const classSales = student.dailyClassSales.filter(
+        (c) => recordInScope(c, filters) && dateInRange(c.classDate, filters)
+      );
+
+      for (const p of student.monthlyPayments) {
+        if (recordIsUnlinkedForSchedule(p, filters) && dateInRange(paymentReferenceDate(p), filters)) {
+          sinHorario.pagos += 1;
+          sinHorario.pagosMonto += p.amount;
+        }
       }
-      return [];
+      for (const c of student.dailyClassSales) {
+        if (recordIsUnlinkedForSchedule(c, filters) && dateInRange(c.classDate, filters)) {
+          sinHorario.clases += 1;
+          sinHorario.clasesMonto += c.amount;
+        }
+      }
+
+      // El alumno pertenece al horario/disciplina filtrados si está asignado o
+      // si tiene algún registro vinculado (aunque sea fuera del rango de fechas).
+      const belongs =
+        !hasScope ||
+        enrolledInScope(enrolledIds, disciplineBySchedule, filters) ||
+        student.monthlyPayments.some((p) => recordInScope(p, filters)) ||
+        student.dailyClassSales.some((c) => recordInScope(c, filters));
+      if (!belongs) continue;
+
+      // El estado de pago se evalúa sobre los pagos que el reporte muestra.
+      if (!matchesPaymentStatus(payments, paymentStatus)) continue;
+
+      rows.push({ student, enrolledIds, payments, classSales });
     }
 
-    // Filtrar pagos por rango de fecha (paidAt, o createdAt si no tiene fecha de pago registrada)
-    function filterPaymentsByDateRange(payments: any[], start: string, end: string) {
-      if (!start && !end) return payments;
-      const startDateObj = start ? parseLocalDate(start) : null;
-      const endDateObj = end ? parseLocalDate(end) : null;
-      if (endDateObj) endDateObj.setHours(23, 59, 59, 999);
-
-      return payments.filter((p) => {
-        const referenceDate = p.paidAt ? new Date(p.paidAt) : new Date(p.createdAt);
-        if (startDateObj && referenceDate < startDateObj) return false;
-        if (endDateObj && referenceDate > endDateObj) return false;
-        return true;
-      });
-    }
-
-    // Filtrar clases diarias por rango de fecha
-    function filterClassSalesByDateRange(sales: any[], start: string, end: string) {
-      if (!start && !end) return sales;
-      // parseLocalDate evita el corrimiento de zona horaria: con new Date("YYYY-MM-DD")
-      // el límite superior quedaba en el día anterior y se perdían las clases
-      // registradas el último día del rango.
-      const startDateObj = start ? parseLocalDate(start) : null;
-      const endDateObj = end ? parseLocalDate(end) : null;
-      if (endDateObj) endDateObj.setHours(23, 59, 59, 999);
-
-      return sales.filter((s) => {
-        const classDate = new Date(s.classDate);
-        if (startDateObj && classDate < startDateObj) return false;
-        if (endDateObj && classDate > endDateObj) return false;
-        return true;
-      });
-    }
-
-    // Aplicar todos los filtros
-    let filteredStudents = students;
-
-    // Determinar la disciplina "efectiva": si se selecciona un horario,
-    // se hereda la disciplina de ese horario (ej: horario MMA -> disciplina MMA).
-    const scheduleFilterObj = scheduleId ? schedulesById[scheduleId] : null;
-    const effectiveDiscipline = discipline || scheduleFilterObj?.discipline || "";
-
-    // Filtro por horario (alumno asignado a ese bloque)
-    if (scheduleId) {
-      filteredStudents = filteredStudents.filter(
-        (s) => s.scheduleId === scheduleId || s.scheduleId == null
-      );
-      // Conservamos alumnos sin scheduleId y luego el filtro por disciplina
-      // efectiva decide si tienen registros que coincidan con el horario.
-    }
-
-    // Filtro por disciplina efectiva: el alumno debe tener al menos una
-    // mensualidad O clase diaria de esa disciplina (no solo mensualidad).
-    if (effectiveDiscipline) {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.some(
-          (p) =>
-            p.discipline === effectiveDiscipline ||
-            (p.disciplines || "").split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
-        ) ||
-        s.dailyClassSales.some((c) =>
-          c.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
-        )
-      );
-    }
-
-    // Filtro por estado de pago
-    if (paymentStatus === "PAGADO") {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.some((p) => p.status === "PAGADO")
-      );
-    } else if (paymentStatus === "PENDIENTE") {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.some((p) => p.status === "PENDIENTE")
-      );
-    } else if (paymentStatus === "SALTADO") {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.some((p) => p.status === "SALTADO")
-      );
-    } else if (paymentStatus === "SIN_PAGO") {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.length === 0
-      );
-    } else if (paymentStatus === "CON_DEUDA") {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.some((p) => p.status === "PENDIENTE" || p.status === "SALTADO")
-      );
-    } else if (paymentStatus === "AL_DIA") {
-      filteredStudents = filteredStudents.filter((s) =>
-        s.monthlyPayments.length > 0 &&
-        !s.monthlyPayments.some((p) => p.status === "PENDIENTE" || p.status === "SALTADO")
-      );
-    }
-
-    // Armar datos de respuesta
-    const reportData = filteredStudents.map((student) => {
-      const scheduleInfo = getStudentScheduleInfo(student.id, student.scheduleId);
-      const filteredPayments = filterPaymentsByDateRange(student.monthlyPayments, startDate, endDate)
-        .filter((p) => {
-          if (!effectiveDiscipline) return true;
-          return (
-            p.discipline === effectiveDiscipline ||
-            (p.disciplines || "").split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
-          );
-        })
-        .filter((p) => {
-          // Si el pago quedó vinculado a un horario concreto, exigir coincidencia exacta.
-          // Los pagos antiguos sin horario se mantienen.
-          if (scheduleFilterObj && p.scheduleId) return p.scheduleId === scheduleFilterObj.id;
-          return true;
-        });
-      const filteredClassSales = filterClassSalesByDateRange(student.dailyClassSales, startDate, endDate)
-        .filter((s) => {
-          if (!effectiveDiscipline) return true;
-          return s.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline);
-        })
-        .filter((s) => {
-          // Si la clase quedó vinculada a un horario concreto, exigir coincidencia exacta
-          // (antes se comparaba solo por día de la semana y se mezclaban horarios).
-          if (scheduleFilterObj && s.scheduleId) return s.scheduleId === scheduleFilterObj.id;
-          // Si se filtra por un horario concreto, exigir el mismo dÃ­a de la semana
-          if (!scheduleFilterObj) return true;
-          const dayMap: Record<string, string> = {
-            LUNES: "1", MARTES: "2", MIERCOLES: "3", JUEVES: "4",
-            VIERNES: "5", SABADO: "6", DOMINGO: "0",
-          };
-          const dow = dayMap[scheduleFilterObj.dayOfWeek];
-          if (dow === undefined) return true;
-          return new Date(s.classDate).getDay().toString() === dow;
-        });
-
-      const totalPagado = filteredPayments
-        .filter((p) => p.status === "PAGADO")
-        .reduce((sum, p) => sum + p.amount, 0);
-
-      const totalPendiente = filteredPayments
-        .filter((p) => p.status === "PENDIENTE" || p.status === "SALTADO")
-        .reduce((sum, p) => sum + p.amount, 0);
-
-      const ultimoPago = filteredPayments.find((p) => p.status === "PAGADO");
-      const disciplinesSet = new Set(student.monthlyPayments.map((p) => p.discipline));
-
+    const reportData = rows.map(({ student, enrolledIds, payments, classSales }) => {
+      const ultimoPago = payments.find((p) => p.status === "PAGADO");
       return {
         id: student.id,
         fullName: student.fullName,
@@ -254,158 +148,115 @@ export async function GET(request: NextRequest) {
         email: student.email || "",
         whatsapp: student.whatsapp || "",
         isActive: student.isActive,
-        birthDate: student.birthDate.toISOString().split("T")[0],
+        birthDate: toDay(student.birthDate),
         edad: calculateAge(student.birthDate),
         district: student.district || "",
-        schedules: scheduleInfo.map((s: any) => ({
-          discipline: s.discipline,
-          dayOfWeek: s.dayOfWeek,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          blockName: s.blockName,
-        })),
-        disciplines: Array.from(disciplinesSet).join(", "),
-        totalPagado,
-        totalPendiente,
-        ultimoPagoMes: ultimoPago
-          ? ultimoPago.monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" })
-          : "Sin pagos",
-        ultimoPagoMonto: ultimoPago?.amount || 0,
-        paymentCount: filteredPayments.length,
-        classSalesCount: filteredClassSales.length,
-        classSalesAmountTotal: filteredClassSales.reduce((sum, s) => sum + s.amount, 0),
-        estadoPago: getPaymentStatus(student.monthlyPayments),
-        monthlyPayments: filteredPayments.map((p) => ({
-          id: p.id,
-          scheduleId: p.scheduleId ?? null,
-          discipline: p.discipline,
-          disciplines: p.disciplines,
-          month: p.monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" }),
-          amount: p.amount,
-          status: p.status,
-          paidAt: p.paidAt ? p.paidAt.toISOString().split("T")[0] : null,
-          paymentMethod: p.paymentMethod || "-",
-          notes: p.notes || "",
-          receiptId: p.receipt?.id || null,
-          receiptNumber: p.receipt?.receiptNumber || null,
-        })),
-        dailyClassSales: filteredClassSales.map((s) => ({
-          id: s.id,
-          scheduleId: s.scheduleId ?? null,
-          discipline: s.discipline,
-          classDate: s.classDate.toISOString().split("T")[0],
-          amount: s.amount,
-          paymentMethod: s.paymentMethod,
-          notes: s.notes || "",
-        })),
-      };
-    });
-
-    // Filtrar y mapear ventas de clases sin alumno vinculado (mismos filtros de fecha/disciplina/horario)
-    let filteredOrphanClassSales = filterClassSalesByDateRange(orphanClassSales, startDate, endDate);
-    if (effectiveDiscipline) {
-      filteredOrphanClassSales = filteredOrphanClassSales.filter((s) =>
-        s.discipline.split(",").map((x: string) => x.trim()).includes(effectiveDiscipline)
-      );
-    }
-    // Las ventas sin alumno (walk-ins) no tienen horario asignado.
-    // Si se filtra por horario, se respeta el dÃ­a de la semana del horario,
-    // pero no se excluyen todas (un walk-in puede caer en el bloque correcto).
-    if (scheduleFilterObj) {
-      // Descartar ventas vinculadas a otro horario distinto del filtrado
-      filteredOrphanClassSales = filteredOrphanClassSales.filter((s) => {
-        if (s.scheduleId) return s.scheduleId === scheduleFilterObj.id;
-        return true;
-      });
-      const dayMap: Record<string, string> = {
-        LUNES: "1", MARTES: "2", MIERCOLES: "3", JUEVES: "4",
-        VIERNES: "5", SABADO: "6", DOMINGO: "0",
-      };
-      const dow = dayMap[scheduleFilterObj.dayOfWeek];
-      if (dow !== undefined) {
-        filteredOrphanClassSales = filteredOrphanClassSales.filter((s) => {
-          // Las ventas ya vinculadas al horario filtrado no se vuelven a filtrar por día
-          if (s.scheduleId) return true;
-          return new Date(s.classDate).getDay().toString() === dow;
-        });
-      }
-    }
-    const clasesSinAlumno = filteredOrphanClassSales.map((s) => ({
-      id: s.id,
-      scheduleId: s.scheduleId ?? null,
-      attendeeName: s.attendeeName || "Sin nombre",
-      discipline: s.discipline,
-      classDate: s.classDate.toISOString().split("T")[0],
-      amount: s.amount,
-      paymentMethod: s.paymentMethod,
-      notes: s.notes || "",
-    }));
-
-    // Resumen general (sin filtro de fecha para mantener totales histÃ³ricos)
-    const resumen = {
-      totalAlumnos: filteredStudents.length,
-      totalPagadoTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPagado, 0),
-      totalPendienteTotal: reportData.reduce((sum: number, s: any) => sum + s.totalPendiente, 0),
-      totalClasesDiarias:
-        reportData.reduce((sum: number, s: any) => sum + s.classSalesCount, 0) +
-        clasesSinAlumno.length,
-      // Monto recaudado por clases diarias (con y sin alumno vinculado), segÃºn filtros
-      totalClasesMonto:
-        reportData.reduce((sum: number, s: any) => sum + s.classSalesAmountTotal, 0) +
-        clasesSinAlumno.reduce((sum: number, c: any) => sum + c.amount, 0),
-      alumnosAlDia: reportData.filter((s: any) => s.estadoPago === "AL_DIA").length,
-      alumnosConDeuda: reportData.filter((s: any) => s.estadoPago === "CON_DEUDA").length,
-      alumnosSinPagos: reportData.filter((s: any) => s.estadoPago === "SIN_PAGOS").length,
-      // Alumnos con pagos que quedaron fuera por el filtro "solo activos"
-      alumnosInactivosOcultos: hiddenInactiveCount,
-    };
-
-    // Pagos detallados planos para exportar
-    const pagosDetallados: any[] = [];
-    filteredStudents.forEach((student) => {
-      const scheduleInfo = getStudentScheduleInfo(student.id, student.scheduleId);
-      const filteredPayments = filterPaymentsByDateRange(student.monthlyPayments, startDate, endDate);
-
-      filteredPayments.forEach((payment) => {
-        // Aplicar disciplina efectiva (la del horario o el filtro explÃ­cito)
-        if (effectiveDiscipline) {
-          const ok =
-            payment.discipline === effectiveDiscipline ||
-            (payment.disciplines || "")
-              .split(",")
-              .map((x: string) => x.trim())
-              .includes(effectiveDiscipline);
-          if (!ok) return;
-        }
-
-        pagosDetallados.push({
-          studentId: student.id,
-          studentName: student.fullName,
-          rut: student.rut || "-",
-          whatsapp: student.whatsapp || "-",
-          email: student.email || "-",
-          district: student.district || "-",
-          scheduleId: student.scheduleId,
-          schedules: scheduleInfo.map((s: any) => ({
+        schedules: schedulesArr
+          .filter((s) => enrolledIds.has(s.id))
+          .map((s) => ({
             discipline: s.discipline,
             dayOfWeek: s.dayOfWeek,
             startTime: s.startTime,
             endTime: s.endTime,
             blockName: s.blockName,
           })),
-          paymentId: payment.id,
-          paymentScheduleId: payment.scheduleId ?? null,
-          discipline: payment.discipline,
-          disciplines: payment.disciplines || "",
-          month: payment.monthCovered.toLocaleDateString("es-CL", { month: "long", year: "numeric" }),
-          amount: payment.amount,
-          status: payment.status,
-          paidAt: payment.paidAt ? payment.paidAt.toISOString().split("T")[0] : null,
-          paymentMethod: payment.paymentMethod || "-",
-          notes: payment.notes || "",
-        });
-      });
+        disciplines: Array.from(new Set(student.monthlyPayments.map((p) => p.discipline))).join(", "),
+        totalPagado: payments.filter((p) => p.status === "PAGADO").reduce((sum, p) => sum + p.amount, 0),
+        totalPendiente: payments
+          .filter((p) => p.status === "PENDIENTE" || p.status === "SALTADO")
+          .reduce((sum, p) => sum + p.amount, 0),
+        ultimoPagoMes: ultimoPago ? toMonth(ultimoPago.monthCovered) : "Sin pagos",
+        ultimoPagoMonto: ultimoPago?.amount || 0,
+        paymentCount: payments.length,
+        classSalesCount: classSales.length,
+        classSalesAmountTotal: classSales.reduce((sum, c) => sum + c.amount, 0),
+        estadoPago: paymentStateOf(payments),
+        monthlyPayments: payments.map((p) => ({
+          id: p.id,
+          scheduleId: p.scheduleId ?? null,
+          discipline: p.discipline,
+          disciplines: p.disciplines,
+          month: toMonth(p.monthCovered),
+          amount: p.amount,
+          status: p.status,
+          paidAt: p.paidAt ? toDay(p.paidAt) : null,
+          paymentMethod: p.paymentMethod || "-",
+          notes: p.notes || "",
+          receiptId: p.receipt?.id || null,
+          receiptNumber: p.receipt?.receiptNumber || null,
+        })),
+        dailyClassSales: classSales.map((c) => ({
+          id: c.id,
+          scheduleId: c.scheduleId ?? null,
+          discipline: c.discipline,
+          classDate: toDay(c.classDate),
+          amount: c.amount,
+          paymentMethod: c.paymentMethod,
+          notes: c.notes || "",
+        })),
+      };
     });
+
+    const clasesSinAlumno = [];
+    for (const sale of orphanClassSales) {
+      if (!dateInRange(sale.classDate, filters)) continue;
+      if (recordIsUnlinkedForSchedule(sale, filters)) {
+        sinHorario.clases += 1;
+        sinHorario.clasesMonto += sale.amount;
+      }
+      if (!recordInScope(sale, filters)) continue;
+      clasesSinAlumno.push({
+        id: sale.id,
+        scheduleId: sale.scheduleId ?? null,
+        attendeeName: sale.attendeeName || "Sin nombre",
+        discipline: sale.discipline,
+        classDate: toDay(sale.classDate),
+        amount: sale.amount,
+        paymentMethod: sale.paymentMethod,
+        notes: sale.notes || "",
+      });
+    }
+
+    const resumen = {
+      totalAlumnos: reportData.length,
+      totalPagadoTotal: reportData.reduce((sum, s) => sum + s.totalPagado, 0),
+      totalPendienteTotal: reportData.reduce((sum, s) => sum + s.totalPendiente, 0),
+      totalClasesDiarias: reportData.reduce((sum, s) => sum + s.classSalesCount, 0) + clasesSinAlumno.length,
+      totalClasesMonto:
+        reportData.reduce((sum, s) => sum + s.classSalesAmountTotal, 0) +
+        clasesSinAlumno.reduce((sum, c) => sum + c.amount, 0),
+      alumnosAlDia: reportData.filter((s) => s.estadoPago === "AL_DIA").length,
+      alumnosConDeuda: reportData.filter((s) => s.estadoPago === "CON_DEUDA").length,
+      alumnosSinPagos: reportData.filter((s) => s.estadoPago === "SIN_PAGOS").length,
+      alumnosInactivosOcultos: hiddenInactiveCount,
+    };
+
+    const pagosDetallados = rows.flatMap(({ student, payments }) =>
+      payments.map((p) => ({
+        studentId: student.id,
+        studentName: student.fullName,
+        rut: student.rut || "-",
+        whatsapp: student.whatsapp || "-",
+        email: student.email || "-",
+        district: student.district || "-",
+        paymentId: p.id,
+        paymentScheduleId: p.scheduleId ?? null,
+        discipline: p.discipline,
+        disciplines: p.disciplines || "",
+        month: toMonth(p.monthCovered),
+        amount: p.amount,
+        status: p.status,
+        paidAt: p.paidAt ? toDay(p.paidAt) : null,
+        paymentMethod: p.paymentMethod || "-",
+        notes: p.notes || "",
+      }))
+    );
+
+    const splitDisciplines = (value: string) =>
+      value
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
 
     return NextResponse.json({
       ok: true,
@@ -414,38 +265,19 @@ export async function GET(request: NextRequest) {
       schedules: schedulesArr,
       disciplines: Array.from(
         new Set([
-          ...schedulesArr.map((s: any) => s.discipline),
-          ...students.flatMap((st) => st.monthlyPayments.map((p: any) => p.discipline)),
-          ...students.flatMap((st) => st.dailyClassSales.map((c: any) => c.discipline.split(","))).flat(),
-          ...clasesSinAlumno.map((c: any) => c.discipline.split(",")).flat(),
+          ...schedulesArr.map((s) => s.discipline),
+          ...students.flatMap((st) => st.monthlyPayments.map((p) => p.discipline as string)),
+          ...students.flatMap((st) => st.dailyClassSales.flatMap((c) => splitDisciplines(c.discipline))),
+          ...orphanClassSales.flatMap((c) => splitDisciplines(c.discipline)),
         ])
       ),
       pagosDetallados,
       clasesSinAlumno,
+      // Solo tiene valores cuando se filtra por horario
+      sinHorario: filters.scheduleId ? sinHorario : null,
     });
   } catch (error) {
     console.error("Error generating report:", error);
-    return NextResponse.json(
-      { ok: false, error: "Error al generar el reporte" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "Error al generar el reporte" }, { status: 500 });
   }
 }
-
-function calculateAge(birthDate: Date): number {
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age;
-}
-
-function getPaymentStatus(payments: { status: string }[]): string {
-  if (payments.length === 0) return "SIN_PAGOS";
-  const hasPending = payments.some((p) => p.status === "PENDIENTE" || p.status === "SALTADO");
-  if (hasPending) return "CON_DEUDA";
-  return "AL_DIA";
-}
-

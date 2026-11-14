@@ -14,6 +14,7 @@ interface Schedule {
   endTime: string;
   blockName: string;
   location?: string;
+  isActive?: boolean;
 }
 
 export function StudentForm() {
@@ -69,7 +70,8 @@ export function StudentForm() {
     try {
       const res = await fetch("/api/schedules");
       const data = await res.json();
-      setSchedules(data);
+      // Los horarios desactivados no se ofrecen para alumnos nuevos
+      setSchedules(Array.isArray(data) ? data.filter((s: Schedule) => s.isActive !== false) : []);
     } catch (error) {
       console.error("Error loading schedules:", error);
     }
@@ -248,7 +250,7 @@ export function StudentForm() {
         {schedules.length > 0 && (
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="mb-3 text-sm font-semibold text-slate-700">
-              Horarios de clases (selecciona los horarios a los que asistirá):
+              Horarios de clases (marca todos a los que asistirá; puede ser más de una disciplina):
             </p>
             <div className="max-h-64 space-y-2 overflow-y-auto">
               {schedules.map((schedule) => (

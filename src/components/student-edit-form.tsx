@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import Link from "next/link";
 import { updateStudentAction } from "@/app/actions";
 
@@ -11,6 +11,7 @@ type Schedule = {
   startTime: string;
   endTime: string;
   blockName: string;
+  isActive?: boolean;
 };
 
 type Student = {
@@ -32,9 +33,12 @@ type Student = {
 
 export function StudentEditForm({ 
   student, 
+  scheduleIds = [],
   monthlyPayments = [] 
 }: { 
   student: Student; 
+  /** Horarios a los que el alumno está asignado actualmente. */
+  scheduleIds?: string[];
   monthlyPayments?: any[]; 
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,6 +48,7 @@ export function StudentEditForm({
   const [photoPreview, setPhotoPreview] = useState<string | null>(student.photoUrl);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>(scheduleIds);
 
   useEffect(() => {
     loadSchedules();
@@ -53,11 +58,23 @@ export function StudentEditForm({
     try {
       const res = await fetch("/api/schedules");
       const data = await res.json();
-      setSchedules(data);
+      setSchedules(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error loading schedules:", error);
     }
   };
+
+  const toggleSchedule = (scheduleId: string) => {
+    setSelectedSchedules((prev) =>
+      prev.includes(scheduleId) ? prev.filter((id) => id !== scheduleId) : [...prev, scheduleId]
+    );
+  };
+
+  // Se ofrecen los horarios activos y, además, los que el alumno ya tiene
+  // aunque estén desactivados (para poder quitarlos).
+  const selectableSchedules = schedules.filter(
+    (s) => s.isActive !== false || selectedSchedules.includes(s.id)
+  );
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -71,7 +88,12 @@ export function StudentEditForm({
     }
   }
 
-  async function handleSubmit(formData: FormData) {
+  // Se usa onSubmit (y no action) a propósito: con action, React reinicia el
+  // formulario al terminar y las casillas de horarios volvían a mostrar los
+  // valores iniciales aunque lo guardado fuera otra cosa.
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
     setIsSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -114,7 +136,7 @@ export function StudentEditForm({
   }
 
   return (
-    <form action={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -184,24 +206,47 @@ export function StudentEditForm({
         </div>
 
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-semibold text-slate-700">
+          {/* Lo que se envía sale del estado, no de las casillas: si la lista de
+              horarios aún no carga, los horarios actuales del alumno no se pierden. */}
+          {selectedSchedules.map((id) => (
+            <input key={id} type="hidden" name="scheduleIds" value={id} />
+          ))}
+          <p className="mb-1 block text-sm font-semibold text-slate-700">
             Horarios asignados (opcional)
-          </label>
-          <select
-            name="scheduleId"
-            defaultValue={student.scheduleId || ""}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-          >
-            <option value="">Sin horario asignado</option>
-            {schedules.map((schedule) => (
-              <option key={schedule.id} value={schedule.id}>
-                {schedule.discipline} - {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-slate-500">
-            Selecciona el horario principal. El alumno puede asistir a múltiples horarios, pero este será su horario principal.
           </p>
+          <p className="mb-2 text-xs text-slate-500">
+            Marca todos los horarios a los que asiste. Puede ser más de una disciplina y más de un bloque.
+          </p>
+          {selectableSchedules.length === 0 ? (
+            <p className="rounded-xl border border-slate-200 p-3 text-xs text-slate-500">
+              No hay horarios disponibles.
+            </p>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3">
+              {selectableSchedules.map((schedule) => (
+                <label
+                  key={schedule.id}
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-2 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSchedules.includes(schedule.id)}
+                    onChange={() => toggleSchedule(schedule.id)}
+                    className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-slate-800">
+                    <span className="font-semibold">{schedule.discipline}</span> - {schedule.dayOfWeek}{" "}
+                    {schedule.startTime}-{schedule.endTime} ({schedule.blockName})
+                    {schedule.isActive === false && (
+                      <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                        Desactivado
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="sm:col-span-2">

@@ -16,53 +16,77 @@ export default async function StudentsBySchedulePage() {
     orderBy: [{ discipline: "asc" }, { startTime: "asc" }],
   });
 
-  // Alumnos con horario asignado
-  const studentsWithSchedule = await prisma.student.findMany({
-    where: { scheduleId: { not: null } },
-    orderBy: { fullName: "asc" },
+  // Alumnos asignados a cada horario. Un alumno puede estar en varios bloques
+  // (más de una disciplina), así que aparece en cada uno de los suyos.
+  const enrollments = await prisma.studentSchedule.findMany({
+    include: { student: true },
+    orderBy: { student: { fullName: "asc" } },
   });
 
-  const studentsBySchedule: Record<string, typeof studentsWithSchedule> = {};
-  studentsWithSchedule.forEach((student) => {
-    if (!student.scheduleId) return;
-    if (!studentsBySchedule[student.scheduleId]) {
-      studentsBySchedule[student.scheduleId] = [];
+  const studentsBySchedule: Record<string, (typeof enrollments)[number]["student"][]> = {};
+  const enrolledKeys = new Set<string>();
+  enrollments.forEach(({ scheduleId, student }) => {
+    if (!studentsBySchedule[scheduleId]) {
+      studentsBySchedule[scheduleId] = [];
     }
-    studentsBySchedule[student.scheduleId].push(student);
+    studentsBySchedule[scheduleId].push(student);
+    enrolledKeys.add(`${scheduleId}:${student.id}`);
+  });
+
+  // Alumnos que pagaron el bloque en los últimos 3 meses sin estar asignados a
+  // él: no se inscriben automáticamente, pero se muestran para poder regularizar.
+  const now = new Date();
+  const recentFrom = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const recentPayers = await prisma.monthlyPayment.findMany({
+    where: { scheduleId: { not: null }, monthCovered: { gte: recentFrom } },
+    select: { scheduleId: true, student: { select: { id: true, fullName: true } } },
+    distinct: ["scheduleId", "studentId"],
+    orderBy: { student: { fullName: "asc" } },
+  });
+  const unassignedPayersBySchedule: Record<string, { id: string; fullName: string }[]> = {};
+  recentPayers.forEach(({ scheduleId, student }) => {
+    if (!scheduleId || enrolledKeys.has(`${scheduleId}:${student.id}`)) return;
+    if (!unassignedPayersBySchedule[scheduleId]) {
+      unassignedPayersBySchedule[scheduleId] = [];
+    }
+    unassignedPayersBySchedule[scheduleId].push(student);
   });
 
   // Actividad: pagos y clases recientes, cada uno vinculado a su horario
   const [payments, classes] = await Promise.all([
     prisma.monthlyPayment.findMany({
+      where: { scheduleId: { not: null } },
       select: {
         id: true,
         scheduleId: true,
         monthCovered: true,
         status: true,
         amount: true,
-        student: { select: { id: true, fullName: true, scheduleId: true } },
+        student: { select: { id: true, fullName: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 300,
     }),
     prisma.dailyClassSale.findMany({
+      where: { scheduleId: { not: null } },
       select: {
         id: true,
         scheduleId: true,
         classDate: true,
         amount: true,
         attendeeName: true,
-        student: { select: { id: true, fullName: true, scheduleId: true } },
+        student: { select: { id: true, fullName: true } },
       },
       orderBy: { classDate: "desc" },
       take: 300,
     }),
   ]);
 
-  // Se agrupa por el horario del registro y, si no tiene, por el del alumno
+  // Solo por el horario del propio registro. Antes, si el pago o la clase no
+  // tenía horario, se atribuía al horario del alumno aunque fuera de otra disciplina.
   const paymentsBySchedule: Record<string, typeof payments> = {};
   payments.forEach((payment) => {
-    const sid = payment.scheduleId || payment.student?.scheduleId || null;
+    const sid = payment.scheduleId;
     if (!sid) return;
     if (!paymentsBySchedule[sid]) {
       paymentsBySchedule[sid] = [];
@@ -72,7 +96,7 @@ export default async function StudentsBySchedulePage() {
 
   const classesBySchedule: Record<string, typeof classes> = {};
   classes.forEach((cls) => {
-    const sid = cls.scheduleId || cls.student?.scheduleId || null;
+    const sid = cls.scheduleId;
     if (!sid) return;
     if (!classesBySchedule[sid]) {
       classesBySchedule[sid] = [];
@@ -142,6 +166,7 @@ export default async function StudentsBySchedulePage() {
                 const scheduleStudents = studentsBySchedule[schedule.id] || [];
                 const schedulePayments = paymentsBySchedule[schedule.id] || [];
                 const scheduleClasses = classesBySchedule[schedule.id] || [];
+                const unassignedPayers = unassignedPayersBySchedule[schedule.id] || [];
                 const totalStudents = scheduleStudents.length;
 
                 return (
@@ -219,6 +244,25 @@ export default async function StudentsBySchedulePage() {
                                 </span>
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {unassignedPayers.length > 0 && (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-xs font-semibold text-amber-800">
+                              Pagaron este bloque en los últimos 3 meses y no están asignados ({unassignedPayers.length})
+                            </p>
+                            <ul className="mt-1 space-y-0.5">
+                              {unassignedPayers.map((payer) => (
+                                <li key={payer.id} className="text-xs text-amber-900">
+                                  <Link href={`/alumnos/${encodeURIComponent(payer.id)}`} className="hover:underline">
+                                    {payer.fullName}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                            <p className="mt-1 text-[11px] text-amber-700">
+                              Para asignarlos, abre su ficha y marca este horario.
+                            </p>
                           </div>
                         )}
                       </div>

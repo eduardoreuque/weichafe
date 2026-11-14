@@ -1,123 +1,81 @@
 /* eslint-disable no-console */
 /**
- * Backfill de scheduleId en MonthlyPayment y DailyClassSale.
- * 
- * Contexto: 
- * En producción, muchos pagos (283 de 291) y ventas de clase diaria se
- * crearon antes de que existiera la columna scheduleId o el binding directo
- * a horarios.
- * 
- * Este script:
- * 1. Para MonthlyPayment donde scheduleId IS NULL:
- *    - Si el estudiante asociado tiene un scheduleId asignado cuya disciplina
- *      coincide con la del pago, copia el scheduleId del estudiante al pago.
- *    - Si el estudiante solo tiene 1 horario asignado y la disciplina coincide,
- *      se asocia.
- * 2. Para DailyClassSale donde scheduleId IS NULL:
- *    - Si el estudiante asociado tiene un scheduleId cuya disciplina coincide,
- *      asocia el horario.
- * 3. Loguea cuántos registros fueron actualizados de forma segura sin
- *    hacer suposiciones ambiguas.
- * 
- * Uso:
- *   node scripts/backfill-schedules.cjs
+ * Vincula horario (scheduleId) a mensualidades y clases diarias que no lo tienen.
+ *
+ * USO MANUAL. Ya no se ejecuta en cada deploy: asignar un horario a un pago es
+ * una suposición, y los registros sin horario ahora se muestran aparte en los
+ * reportes en lugar de mezclarse con un bloque.
+ *
+ * Regla (solo casos sin ambigüedad): el registro se vincula únicamente si el
+ * alumno está asignado a EXACTAMENTE UN horario de la disciplina del registro.
+ * Si tiene dos bloques de la misma disciplina, o ninguno, no se toca.
+ *
+ * Por defecto solo informa qué haría. Para aplicar los cambios:
+ *   node scripts/backfill-schedules.cjs --apply
+ *
+ * No imprime nombres ni datos personales (los logs del deploy son públicos).
  */
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
+const APPLY = process.argv.includes("--apply");
+
+function disciplinesOf(value) {
+  return String(value || "")
+    .split(",")
+    .map((d) => d.trim().toUpperCase())
+    .filter(Boolean);
+}
 
 async function main() {
-  console.log("=== INICIANDO BACKFILL DE SCHEDULE_ID ===");
+  console.log(`=== BACKFILL DE HORARIOS (${APPLY ? "APLICANDO CAMBIOS" : "simulación, sin cambios"}) ===`);
 
-  const schedules = await prisma.schedule.findMany();
-  console.log(`Horarios disponibles en BD: ${schedules.length}`);
-  const scheduleById = new Map(schedules.map((s) => [s.id, s]));
+  // Horarios de cada alumno: la lista N:N y, por compatibilidad, el principal
+  const schedules = await prisma.schedule.findMany({ select: { id: true, discipline: true } });
+  const disciplineOf = new Map(schedules.map((s) => [s.id, String(s.discipline).toUpperCase()]));
 
-  // 1. BACKFILL MONTHLY PAYMENTS
-  const unlinkedPayments = await prisma.monthlyPayment.findMany({
+  const enrolled = new Map();
+  const add = (studentId, scheduleId) => {
+    if (!scheduleId || !disciplineOf.has(scheduleId)) return;
+    if (!enrolled.has(studentId)) enrolled.set(studentId, new Set());
+    enrolled.get(studentId).add(scheduleId);
+  };
+  for (const link of await prisma.studentSchedule.findMany()) add(link.studentId, link.scheduleId);
+  for (const s of await prisma.student.findMany({ select: { id: true, scheduleId: true } })) add(s.id, s.scheduleId);
+
+  const uniqueScheduleFor = (studentId, disciplines) => {
+    const matches = [...(enrolled.get(studentId) || [])].filter((id) => disciplines.includes(disciplineOf.get(id)));
+    return matches.length === 1 ? matches[0] : null;
+  };
+
+  const payments = await prisma.monthlyPayment.findMany({
     where: { scheduleId: null },
-    include: {
-      student: {
-        select: {
-          id: true,
-          fullName: true,
-          scheduleId: true,
-        },
-      },
-    },
+    select: { id: true, studentId: true, discipline: true, disciplines: true },
   });
-
-  console.log(`Pagos mensuales sin scheduleId: ${unlinkedPayments.length}`);
-
-  let paymentsUpdated = 0;
-  for (const payment of unlinkedPayments) {
-    if (!payment.student || !payment.student.scheduleId) {
-      continue;
-    }
-
-    const studentSchedule = scheduleById.get(payment.student.scheduleId);
-    if (!studentSchedule) continue;
-
-    // Verificar compatibilidad de disciplina
-    const paymentDisc = (payment.discipline || "").toUpperCase();
-    const schedDisc = (studentSchedule.discipline || "").toUpperCase();
-    const disciplinesList = (payment.disciplines || "").toUpperCase();
-
-    const matches =
-      schedDisc === paymentDisc ||
-      disciplinesList.includes(schedDisc) ||
-      paymentDisc.includes(schedDisc);
-
-    if (matches) {
-      await prisma.monthlyPayment.update({
-        where: { id: payment.id },
-        data: { scheduleId: studentSchedule.id },
-      });
-      paymentsUpdated++;
-    }
+  let paymentsLinked = 0;
+  for (const payment of payments) {
+    const scheduleId = uniqueScheduleFor(payment.studentId, disciplinesOf(`${payment.discipline},${payment.disciplines || ""}`));
+    if (!scheduleId) continue;
+    if (APPLY) await prisma.monthlyPayment.update({ where: { id: payment.id }, data: { scheduleId } });
+    paymentsLinked++;
   }
+  console.log(`Mensualidades sin horario: ${payments.length} | vinculables sin ambigüedad: ${paymentsLinked}`);
 
-  console.log(`✓ Pagos mensuales actualizados con scheduleId del alumno: ${paymentsUpdated}`);
-
-  // 2. BACKFILL DAILY CLASS SALES
-  const unlinkedSales = await prisma.dailyClassSale.findMany({
-    where: { scheduleId: null },
-    include: {
-      student: {
-        select: {
-          id: true,
-          fullName: true,
-          scheduleId: true,
-        },
-      },
-    },
+  const sales = await prisma.dailyClassSale.findMany({
+    where: { scheduleId: null, studentId: { not: null } },
+    select: { id: true, studentId: true, discipline: true },
   });
-
-  console.log(`Ventas de clases diarias sin scheduleId: ${unlinkedSales.length}`);
-
-  let salesUpdated = 0;
-  for (const sale of unlinkedSales) {
-    if (!sale.student || !sale.student.scheduleId) {
-      continue;
-    }
-
-    const studentSchedule = scheduleById.get(sale.student.scheduleId);
-    if (!studentSchedule) continue;
-
-    const saleDisc = (sale.discipline || "").toUpperCase();
-    const schedDisc = (studentSchedule.discipline || "").toUpperCase();
-
-    if (saleDisc === schedDisc || saleDisc.includes(schedDisc)) {
-      await prisma.dailyClassSale.update({
-        where: { id: sale.id },
-        data: { scheduleId: studentSchedule.id },
-      });
-      salesUpdated++;
-    }
+  let salesLinked = 0;
+  for (const sale of sales) {
+    const scheduleId = uniqueScheduleFor(sale.studentId, disciplinesOf(sale.discipline));
+    if (!scheduleId) continue;
+    if (APPLY) await prisma.dailyClassSale.update({ where: { id: sale.id }, data: { scheduleId } });
+    salesLinked++;
   }
+  console.log(`Clases diarias sin horario (con alumno): ${sales.length} | vinculables sin ambigüedad: ${salesLinked}`);
 
-  console.log(`✓ Ventas de clases diarias actualizadas con scheduleId del alumno: ${salesUpdated}`);
-  console.log("=== FIN DEL BACKFILL ===");
+  if (!APPLY) console.log("No se modificó nada. Para aplicar: node scripts/backfill-schedules.cjs --apply");
+  console.log("=== FIN ===");
 }
 
 main()

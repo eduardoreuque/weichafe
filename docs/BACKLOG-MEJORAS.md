@@ -24,6 +24,14 @@ Lo ya corregido en el commit `a2fa578` está marcado con ✅.
 
 ## 2. Nuevo
 
+- ✅ **Varios horarios por alumno** (noviembre 2026): tabla `StudentSchedule` (N:N). Alta y edición permiten marcar todos los horarios y disciplinas; `Student.scheduleId` se mantiene como horario principal.
+- ✅ **Filtros exactos por bloque** (noviembre 2026): Pagos por horario, Reportes y Alumnos por horario muestran solo registros vinculados al bloque (`scheduleId`). Los registros sin horario se informan aparte. Reglas en `src/lib/report-filters.ts`, con pruebas (`npm test`).
+- ✅ **Deploy con vuelta atrás** (`scripts/deploy-remote.sh`): detiene el servicio, respalda con verificación de integridad, migra, comprueba que la app responde y restaura la versión anterior si algo falla.
+- ✅ **Respaldo diario automático** (`scripts/backup-db.py` + timer de systemd, últimos 30).
+- ✅ **Aviso por correo** tras un deploy exitoso (`scripts/send-deploy-email.py`). Requiere los secretos `SMTP_USERNAME`, `SMTP_PASSWORD` y `DEPLOY_MAIL_TO`. Los informes a enviar se dejan en el servidor, en `/var/weichafe/informes/pendientes/*.md`.
+- ✅ Un horario con alumnos, pagos o clases ya no se puede eliminar: se desactiva.
+- ✅ Validación de fechas (años fuera de rango) y de que el horario corresponda a la disciplina.
+- ✅ La casilla "Alumno activo" de la ficha ahora se respeta.
 - ✅ **Menú de navegación global** (`src/components/app-nav.tsx`) con accesos según rol + `src/app/admin/layout.tsx` que valida ADMIN en el servidor para todo `/admin/*`.
 - ✅ **Respaldo de la base** desde `/admin` (`GET /api/admin/backup`, usa `VACUUM INTO` para una copia consistente).
 - ✅ **Respaldos versionados** en cada deploy (`/var/weichafe/backups`, se conservan los últimos 10).
@@ -40,13 +48,13 @@ Lo ya corregido en el commit `a2fa578` está marcado con ✅.
 2. **Historial completo por alumno**: en `/alumnos/[id]` solo se ven 5 pagos y 10 clases (`take: 10`). Sugerido: pestañas "Mensualidades" / "Clases" / "Comprobantes" con paginación y reimpresión.
 3. **Editar / anular pagos y clases**: hoy no hay forma de corregir un monto mal cargado. Sugerido: `PATCH /api/monthly-payments/:id` y `PATCH /api/daily-class-sales/:id` con estado `ANULADO` y registro de quién modificó.
 4. **Recordatorios de pago por WhatsApp**: ya se detectan los meses saltados (`detectSkippedMonthsByDiscipline`) y se tiene el WhatsApp del alumno. Sugerido: botón "Recordar por WhatsApp" con mensaje prellenado (`https://wa.me/56...?text=`).
-5. **Respaldos automáticos diarios**: hoy se respalda en cada deploy. Sugerido: `systemd timer` que copie `dev.db` a `/var/weichafe/backups` + botón para descargar el respaldo más reciente.
+5. ✅ **Respaldos automáticos diarios**: hecho con `systemd timer` (ver sección 2). Pendiente: copia fuera del servidor.
 
 ### Media — funcionalidad
 6. **Caja del día**: nueva vista con total recaudado hoy (mensualidades + clases), desglose por método de pago y cierre de caja imprimible.
 7. **Reporte de morosidad**: alumnos con meses impagos agrupados por horario, exportable a CSV y contacto por WhatsApp.
 8. **Comprobante en PDF**: hoy es HTML con `window.print`. Sugerido: "descargar PDF" y envío por WhatsApp/email.
-9. **Sesiones multi-horario reales**: `Student.scheduleId` guarda un solo horario aunque el formulario permite marcar varios. Sugerido: tabla `StudentSchedule` (N:N) y adaptar los filtros.
+9. ✅ **Sesiones multi-horario reales**: hecho con la tabla `StudentSchedule` (ver sección 2).
 10. **Historial de cambios (auditoría)**: registrar quién creó/editó/eliminó pagos, alumnos y horarios.
 11. **Vista pública de horarios**: página sin login con horarios y valores (hoy están fijos en `src/app/page.tsx`, duplicando la BD).
 
@@ -55,7 +63,7 @@ Lo ya corregido en el commit `a2fa578` está marcado con ✅.
 13. **Duplicaciones**: `calculateAge` (en `lib/helpers.ts` y en `api/reports/route.ts`), `getPaymentStatus`, y las listas de disciplinas repetidas en `class-form`, `payment-form` y `schedule-manager` (extraer a `lib/constants.ts`).
 14. **Fotos de alumnos**: se mezclan archivos en `UPLOAD_DIR` con base64 en la BD (`photoUrl`). Normalizar a archivos y limpiar el base64 al reemplazar.
 15. **`next.config.ts`**: `images.remotePatterns` con `hostname: "**"` es muy permisivo; acotar a los dominios propios.
-16. **Sin tests**: sugerido tests de `lib/helpers.ts` (fechas, meses saltados) y de los filtros de reportes con Vitest o `node:test`.
+16. **Pruebas**: hay pruebas de los filtros de reportes (`npm test`, `node:test`). Falta cubrir `lib/helpers.ts` (fechas, meses saltados).
 17. **`public/schedules.json`**: se mantiene solo para el importador inicial; se puede eliminar cuando la BD sea la fuente única.
 18. **`src/components/student-search.tsx`**: archivo vacío ("componente eliminado"). Borrarlo o reintroducir la búsqueda global de alumnos.
 19. **Rate limiting en login**: `/recovery` ya lo tiene en memoria; el login no. Reutilizar `lib/recovery.ts`.

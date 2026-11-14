@@ -7,6 +7,17 @@ function pickString(raw: unknown): string | null {
   return value.length > 0 ? value : null;
 }
 
+async function countScheduleUsage(scheduleId: string) {
+  const [students, payments, classes] = await Promise.all([
+    prisma.student.count({
+      where: { OR: [{ scheduleId }, { schedules: { some: { scheduleId } } }] },
+    }),
+    prisma.monthlyPayment.count({ where: { scheduleId } }),
+    prisma.dailyClassSale.count({ where: { scheduleId } }),
+  ]);
+  return { students, payments, classes };
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) {
@@ -53,6 +64,27 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ success: true, schedule: newSchedule });
     } else if (action === "update") {
+      const current = await prisma.schedule.findUnique({
+        where: { id: schedule.id },
+        select: { discipline: true },
+      });
+      if (!current) {
+        return NextResponse.json({ success: false, error: "Horario no encontrado" }, { status: 404 });
+      }
+      // Cambiar la disciplina de un bloque con registros dejaría pagos y clases
+      // de una disciplina vinculados a un horario de otra.
+      if (current.discipline !== schedule.discipline) {
+        const usage = await countScheduleUsage(schedule.id);
+        if (usage.payments + usage.classes > 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `No se puede cambiar la disciplina: este horario tiene ${usage.payments} pago(s) y ${usage.classes} clase(s) vinculados. Crea un horario nuevo para la otra disciplina.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
       const updated = await prisma.schedule.update({
         where: { id: schedule.id },
         data: {
@@ -67,6 +99,18 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ success: true, schedule: updated });
     } else if (action === "delete") {
+      // Borrar un horario desvinculaba en silencio sus pagos y clases (quedaban
+      // "sin horario") y dejaba alumnos apuntando a un horario inexistente.
+      const usage = await countScheduleUsage(schedule.id);
+      if (usage.students + usage.payments + usage.classes > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Este horario tiene ${usage.students} alumno(s), ${usage.payments} pago(s) y ${usage.classes} clase(s) vinculados. Para no perder esos vínculos, edítalo y desmarca "Horario activo" en lugar de eliminarlo.`,
+          },
+          { status: 409 }
+        );
+      }
       await prisma.schedule.delete({
         where: { id: schedule.id },
       });

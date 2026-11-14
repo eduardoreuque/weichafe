@@ -4,7 +4,7 @@ import { Discipline, MonthlyStatus, PaymentMethod, Prisma } from "@prisma/client
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createReceiptNumber } from "@/lib/receipts";
-import { parseLocalDate } from "@/lib/helpers";
+import { isPlausibleDate, parseLocalDate, todayInChile } from "@/lib/helpers";
 
 const disciplines = new Set<Discipline>([
   "MMA",
@@ -67,8 +67,8 @@ export async function POST(request: Request) {
 
   // Fecha LOCAL para evitar el corrimiento de -1 día por zona horaria
   const monthCovered = parseLocalDate(monthCoveredRaw, "month");
-  if (Number.isNaN(monthCovered.getTime())) {
-    return NextResponse.json({ ok: false, error: "Mes de cobertura invalido" }, { status: 400 });
+  if (!isPlausibleDate(monthCovered)) {
+    return NextResponse.json({ ok: false, error: "Mes de cobertura invalido: revisa el año" }, { status: 400 });
   }
 
   const amount = normalizeInt(body.amount);
@@ -77,20 +77,34 @@ export async function POST(request: Request) {
   }
 
   const paidAtRaw = normalizeString(body.paidAt);
-  const paidAt = paidAtRaw ? parseLocalDate(paidAtRaw) : status === "PAGADO" ? new Date() : null;
+  const paidAt = paidAtRaw ? parseLocalDate(paidAtRaw) : status === "PAGADO" ? todayInChile() : null;
 
-  if (paidAt && Number.isNaN(paidAt.getTime())) {
-    return NextResponse.json({ ok: false, error: "Fecha de pago invalida" }, { status: 400 });
+  // Un año mal escrito (ej. 20226) pasaba hasta la base y fallaba con un error genérico.
+  if (paidAt && !isPlausibleDate(paidAt)) {
+    return NextResponse.json({ ok: false, error: "Fecha de pago invalida: revisa el año" }, { status: 400 });
   }
 
   const scheduleIdRaw = normalizeString(body.scheduleId);
   let scheduleId: string | null = null;
   if (scheduleIdRaw) {
-    const scheduleExists = await prisma.schedule.findUnique({
+    const schedule = await prisma.schedule.findUnique({
       where: { id: scheduleIdRaw },
-      select: { id: true },
+      select: { id: true, discipline: true },
     });
-    scheduleId = scheduleExists?.id ?? null;
+    // Antes un horario inexistente se descartaba en silencio y el pago quedaba sin horario.
+    if (!schedule) {
+      return NextResponse.json(
+        { ok: false, error: "El horario seleccionado ya no existe. Recarga la página e inténtalo de nuevo." },
+        { status: 400 }
+      );
+    }
+    if (schedule.discipline !== discipline) {
+      return NextResponse.json(
+        { ok: false, error: "El horario seleccionado no corresponde a la disciplina del pago." },
+        { status: 400 }
+      );
+    }
+    scheduleId = schedule.id;
   }
 
   const data: Prisma.MonthlyPaymentCreateInput = {

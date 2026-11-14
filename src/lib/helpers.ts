@@ -133,6 +133,31 @@ export function parseLocalDate(
   return new Date(year, month, day);
 }
 
+/**
+ * Rechaza fechas inválidas o con años absurdos. Un año de 5 dígitos escrito por
+ * error (ej. 20226) es una fecha válida para JavaScript pero no para la base.
+ */
+export function isPlausibleDate(d: Date, minYear = 2000, maxYear = 2100): boolean {
+  if (Number.isNaN(d.getTime())) return false;
+  const year = d.getFullYear();
+  return year >= minYear && year <= maxYear;
+}
+
+/**
+ * Fecha de hoy en Chile, en el mismo formato que las fechas ingresadas por
+ * formulario (medianoche). El servidor corre en UTC: con `new Date()` un pago
+ * registrado de noche quedaba con la fecha del día siguiente.
+ */
+export function todayInChile(): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return parseLocalDate(ymd);
+}
+
 /** Convierte un Date a "YYYY-MM-DD" usando la zona horaria local. */
 export function toLocalInputValue(d: Date): string {
   const y = d.getFullYear();

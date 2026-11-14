@@ -4,7 +4,8 @@ import { Discipline, PaymentMethod } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createReceiptNumber } from "@/lib/receipts";
-import { parseLocalDate } from "@/lib/helpers";
+import { isPlausibleDate, parseLocalDate } from "@/lib/helpers";
+import { disciplinesOf } from "@/lib/report-filters";
 
 const disciplines = new Set<Discipline>([
   "MMA",
@@ -71,8 +72,8 @@ export async function POST(request: Request) {
 
   // Fecha LOCAL para evitar el corrimiento de -1 día por zona horaria
   const classDate = parseLocalDate(classDateRaw);
-  if (Number.isNaN(classDate.getTime())) {
-    return NextResponse.json({ ok: false, error: "Fecha de clase invalida" }, { status: 400 });
+  if (!isPlausibleDate(classDate)) {
+    return NextResponse.json({ ok: false, error: "Fecha de clase invalida: revisa el año" }, { status: 400 });
   }
 
   const amount = normalizeInt(body.amount);
@@ -81,14 +82,28 @@ export async function POST(request: Request) {
   }
 
   try {
-    // El horario es opcional: se valida contra la BD para no romper si llega vacío/inexistente
+    // El horario es opcional, pero si se indica debe existir y ser de una de
+    // las disciplinas de la clase. Antes un horario inexistente se descartaba
+    // en silencio y la venta quedaba sin horario.
     let scheduleId: string | null = null;
     if (scheduleIdRaw) {
-      const scheduleExists = await prisma.schedule.findUnique({
+      const schedule = await prisma.schedule.findUnique({
         where: { id: scheduleIdRaw },
-        select: { id: true },
+        select: { id: true, discipline: true },
       });
-      scheduleId = scheduleExists?.id ?? null;
+      if (!schedule) {
+        return NextResponse.json(
+          { ok: false, error: "El horario seleccionado ya no existe. Recarga la página e inténtalo de nuevo." },
+          { status: 400 }
+        );
+      }
+      if (!disciplinesOf({ discipline: disciplineRaw }).includes(schedule.discipline)) {
+        return NextResponse.json(
+          { ok: false, error: "El horario seleccionado no corresponde a las disciplinas de la clase." },
+          { status: 400 }
+        );
+      }
+      scheduleId = schedule.id;
     }
 
     // Venta + comprobante en una sola transacción

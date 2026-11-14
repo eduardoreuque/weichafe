@@ -64,9 +64,13 @@ export function ScheduleManager() {
       if (res.ok) {
         await loadSchedules();
         resetForm();
+      } else {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "No se pudo guardar el horario.");
       }
     } catch (error) {
       console.error("Error saving schedule:", error);
+      alert("No se pudo guardar el horario. Intenta nuevamente.");
     }
   };
 
@@ -97,9 +101,14 @@ export function ScheduleManager() {
 
       if (res.ok) {
         await loadSchedules();
+      } else {
+        // El servidor rechaza borrar horarios con alumnos, pagos o clases vinculados
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "No se pudo eliminar el horario.");
       }
     } catch (error) {
       console.error("Error deleting schedule:", error);
+      alert("No se pudo eliminar el horario. Intenta nuevamente.");
     }
   };
 
@@ -228,6 +237,19 @@ export function ScheduleManager() {
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Horario activo
+              <span className="font-normal text-slate-500">
+                (desactívalo en lugar de eliminarlo: conserva sus pagos y clases, y deja de ofrecerse en los formularios)
+              </span>
+            </label>
           </div>
 
           <div className="mt-4 flex gap-2">
@@ -265,6 +287,11 @@ export function ScheduleManager() {
                 </p>
                 <p className="text-xs text-slate-500">{schedule.blockName}</p>
                 {schedule.location && <p className="text-xs text-slate-500">📍 {schedule.location}</p>}
+                {!schedule.isActive && (
+                  <span className="mt-1 inline-block rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                    Desactivado
+                  </span>
+                )}
               </div>
               <div className="flex gap-1">
                 <button

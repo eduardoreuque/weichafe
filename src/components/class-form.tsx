@@ -14,7 +14,7 @@ const DISCIPLINE_OPTIONS = [
 ];
 
 type StudentOption = { id: string; fullName: string };
-type Schedule = { id: string; discipline: string; dayOfWeek: string; startTime: string; endTime: string; blockName: string };
+type Schedule = { id: string; discipline: string; dayOfWeek: string; startTime: string; endTime: string; blockName: string; isActive?: boolean };
 
 export function ClassForm({ students }: { students: StudentOption[] }) {
   const [state, setState] = useState<{ ok: boolean; error?: string } | null>(null);
@@ -33,7 +33,7 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
     try {
       const res = await fetch("/api/schedules");
       const data = await res.json();
-      setSchedules(data);
+      setSchedules(Array.isArray(data) ? data.filter((s: Schedule) => s.isActive !== false) : []);
     } catch (error) {
       console.error("Error loading schedules:", error);
     }
@@ -85,6 +85,7 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
       if (result.ok) {
         setFormKey((k) => k + 1);
         setSelectedDisciplines([]);
+        setSelectedScheduleId("");
         router.refresh();
       }
     } catch {
@@ -177,6 +178,8 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
             name="classDate"
             type="date"
             required
+            min="2000-01-01"
+            max="2100-12-31"
             className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
           />
         </label>

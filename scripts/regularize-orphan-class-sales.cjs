@@ -105,14 +105,12 @@ async function main() {
       }
     });
     linked++;
-    console.log(`  ✓ Vinculada venta ${sale.id} (${sale.attendeeName}) -> alumno ${studentId}`);
+    // Sin nombres: los logs del deploy son públicos.
+    console.log(`  ✓ Vinculada venta ${sale.id} -> alumno ${studentId}`);
   }
 
   console.log(`\nVincularon correctamente: ${linked}`);
   console.log(`Sin match (revisar a mano): ${unmatched.length}`);
-  for (const u of unmatched) {
-    console.log(`  - ${u.id} | ${u.attendeeName}`);
-  }
 }
 
 main()

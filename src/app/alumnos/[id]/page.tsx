@@ -19,10 +19,17 @@ export default async function StudentEditPage({
 
   const student = await prisma.student.findUnique({
     where: { id },
+    include: { schedules: { select: { scheduleId: true } } },
   });
 
   if (!student) {
     notFound();
+  }
+
+  // Horarios asignados: la lista N:N y, por compatibilidad, el horario principal
+  const enrolledScheduleIds = student.schedules.map((link) => link.scheduleId);
+  if (student.scheduleId && !enrolledScheduleIds.includes(student.scheduleId)) {
+    enrolledScheduleIds.push(student.scheduleId);
   }
 
   const monthlyPayments = await prisma.monthlyPayment.findMany({
@@ -92,7 +99,7 @@ export default async function StudentEditPage({
           <div className="lg:col-span-2">
             <div className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
               <h2 className="mb-4 text-xl font-bold text-slate-900">Información del Alumno</h2>
-              <StudentEditForm student={student} monthlyPayments={monthlyPayments} />
+              <StudentEditForm student={student} scheduleIds={enrolledScheduleIds} monthlyPayments={monthlyPayments} />
             </div>
           </div>
 
@@ -115,18 +122,24 @@ export default async function StudentEditPage({
               )}
             </div>
 
-            {student.scheduleId && schedules && schedules.length > 0 && (() => {
-              const schedule = schedules.find(s => s.id === student.scheduleId);
-              if (!schedule) return null;
+            {(() => {
+              const enrolled = schedules.filter((s) => enrolledScheduleIds.includes(s.id));
+              if (enrolled.length === 0) return null;
               return (
                 <div className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-sm">
-                  <h3 className="mb-3 text-lg font-bold text-slate-900">Horario Asignado</h3>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                    <p className="text-sm font-semibold text-emerald-900">{schedule.discipline}</p>
-                    <p className="text-xs text-emerald-700 mt-1">
-                      {schedule.dayOfWeek} • {schedule.startTime} - {schedule.endTime}
-                    </p>
-                    <p className="text-xs text-emerald-600 mt-1">{schedule.blockName}</p>
+                  <h3 className="mb-3 text-lg font-bold text-slate-900">
+                    {enrolled.length === 1 ? "Horario Asignado" : `Horarios Asignados (${enrolled.length})`}
+                  </h3>
+                  <div className="space-y-2">
+                    {enrolled.map((schedule) => (
+                      <div key={schedule.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <p className="text-sm font-semibold text-emerald-900">{schedule.discipline}</p>
+                        <p className="text-xs text-emerald-700 mt-1">
+                          {schedule.dayOfWeek} • {schedule.startTime} - {schedule.endTime}
+                        </p>
+                        <p className="text-xs text-emerald-600 mt-1">{schedule.blockName}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );

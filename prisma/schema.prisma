@@ -45,7 +45,7 @@ model Student {
   notes            String?          // Observaciones
   photoUrl         String?          // URL de la foto del alumno
   isActive         Boolean          @default(true)  // Alumno activo/inactivo
-  scheduleId       String?          // Horario asignado al alumno
+  scheduleId       String?          // Horario principal (compatibilidad). La lista completa está en StudentSchedule
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -53,6 +53,21 @@ model Student {
   dailyClassSales DailyClassSale[]
   receipts        Receipt[]
   schedule        Schedule?         @relation(fields: [scheduleId], references: [id])
+  schedules       StudentSchedule[]
+}
+
+// Horarios a los que asiste un alumno (N:N). Un alumno puede tomar más de una
+// disciplina y más de un bloque.
+model StudentSchedule {
+  studentId  String
+  scheduleId String
+  createdAt  DateTime @default(now())
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, scheduleId])
+  @@index([scheduleId])
 }
 
 model MonthlyPayment {
@@ -145,6 +160,7 @@ model Schedule {
   updatedAt   DateTime @updatedAt
 
   students        Student[]
+  studentLinks    StudentSchedule[]
   monthlyPayments MonthlyPayment[]
   dailyClassSales DailyClassSale[]
 

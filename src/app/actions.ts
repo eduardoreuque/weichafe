@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { parseLocalDate } from "@/lib/helpers";
+import { isPlausibleDate, parseLocalDate } from "@/lib/helpers";
+import { scheduleIdsExist } from "@/lib/schedules";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -35,27 +36,65 @@ export async function updateStudentAction(
   if (!fullName) return { ok: false, error: "El nombre completo es requerido" };
   if (!birthDateRaw) return { ok: false, error: "La fecha de nacimiento es requerida" };
 
-  const scheduleId = normalizeString(formData.get("scheduleId"));
+  const birthDate = parseLocalDate(birthDateRaw);
+  if (!isPlausibleDate(birthDate, 1900, new Date().getFullYear())) {
+    return { ok: false, error: "La fecha de nacimiento no es válida" };
+  }
+
+  // Horarios marcados en el formulario (puede ser más de una disciplina y bloque)
+  const scheduleIds: string[] = [];
+  for (const entry of formData.getAll("scheduleIds")) {
+    const id = normalizeString(entry);
+    if (id && !scheduleIds.includes(id)) scheduleIds.push(id);
+  }
 
   try {
-    await prisma.student.update({
+    const current = await prisma.student.findUnique({
       where: { id: studentId },
-      data: {
-        fullName,
-        birthDate: parseLocalDate(birthDateRaw),
-        rut: normalizeString(formData.get("rut")),
-        email: normalizeString(formData.get("email")),
-        whatsapp: normalizeString(formData.get("whatsapp")),
-        address: normalizeString(formData.get("address")),
-        district: normalizeString(formData.get("district")),
-        emergencyContact: normalizeString(formData.get("emergencyContact")),
-        emergencyPhone: normalizeString(formData.get("emergencyPhone")),
-        notes: normalizeString(formData.get("notes")),
-        photoUrl: normalizeString(formData.get("photoUrl")),
-        scheduleId,
-        isActive: formData.get("isActive") !== "false",
-      },
+      select: { scheduleId: true, schedules: { select: { scheduleId: true } } },
     });
+    if (!current) return { ok: false, error: "Alumno no encontrado" };
+
+    if (!(await scheduleIdsExist(scheduleIds))) {
+      return { ok: false, error: "Uno de los horarios seleccionados ya no existe. Recarga la página." };
+    }
+
+    // El horario principal se conserva si sigue marcado; si no, pasa a ser el primero.
+    const primaryScheduleId =
+      current.scheduleId && scheduleIds.includes(current.scheduleId)
+        ? current.scheduleId
+        : scheduleIds[0] ?? null;
+    const alreadyLinked = new Set(current.schedules.map((link) => link.scheduleId));
+
+    await prisma.$transaction([
+      prisma.student.update({
+        where: { id: studentId },
+        data: {
+          fullName,
+          birthDate,
+          rut: normalizeString(formData.get("rut")),
+          email: normalizeString(formData.get("email")),
+          whatsapp: normalizeString(formData.get("whatsapp")),
+          address: normalizeString(formData.get("address")),
+          district: normalizeString(formData.get("district")),
+          emergencyContact: normalizeString(formData.get("emergencyContact")),
+          emergencyPhone: normalizeString(formData.get("emergencyPhone")),
+          notes: normalizeString(formData.get("notes")),
+          photoUrl: normalizeString(formData.get("photoUrl")),
+          scheduleId: primaryScheduleId,
+          // Una casilla desmarcada no se envía. Antes se comparaba con "false" y
+          // el alumno quedaba siempre activo: no se podía marcar como inactivo y
+          // editar a un inactivo lo reactivaba.
+          isActive: formData.get("isActive") === "on",
+        },
+      }),
+      prisma.studentSchedule.deleteMany({
+        where: { studentId, scheduleId: { notIn: scheduleIds } },
+      }),
+      ...scheduleIds
+        .filter((scheduleId) => !alreadyLinked.has(scheduleId))
+        .map((scheduleId) => prisma.studentSchedule.create({ data: { studentId, scheduleId } })),
+    ]);
 
     revalidatePath("/");
     revalidatePath("/alumnos");

@@ -91,6 +91,13 @@ interface Resumen {
   alumnosInactivosOcultos?: number;
 }
 
+interface SinHorario {
+  pagos: number;
+  pagosMonto: number;
+  clases: number;
+  clasesMonto: number;
+}
+
 const STATUS_OPTIONS = [
   { value: "", label: "Todos los estados" },
   { value: "AL_DIA", label: "Al día" },
@@ -143,6 +150,7 @@ export default function ReportesPage() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [pagosDetallados, setPagosDetallados] = useState<any[]>([]);
   const [clasesSinAlumno, setClasesSinAlumno] = useState<OrphanClassSaleInfo[]>([]);
+  const [sinHorario, setSinHorario] = useState<SinHorario | null>(null);
 
   // Filtros
   const [filterSchedule, setFilterSchedule] = useState("");
@@ -176,6 +184,7 @@ export default function ReportesPage() {
         setSchedules(result.schedules || []);
         setDisciplines(result.disciplines || []);
         setClasesSinAlumno(result.clasesSinAlumno || []);
+        setSinHorario(result.sinHorario || null);
         // Armar pagos detallados desde la data
         const detallados: any[] = [];
         result.data.forEach((student: StudentReport) => {
@@ -428,6 +437,18 @@ export default function ReportesPage() {
             </div>
           )}
 
+          {filterSchedule && sinHorario && sinHorario.pagos + sinHorario.clases > 0 && (
+            <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+              <p className="text-sm text-sky-900">
+                <span className="font-semibold">Este reporte muestra solo lo vinculado al horario elegido.</span>{" "}
+                Quedan fuera {sinHorario.pagos} mensualidad(es) ({formatCurrency(sinHorario.pagosMonto)}) y{" "}
+                {sinHorario.clases} clase(s) ({formatCurrency(sinHorario.clasesMonto)}) de la misma disciplina
+                registradas sin horario: no se puede saber a qué bloque pertenecen. Para verlas, quita el
+                filtro de horario y filtra por disciplina.
+              </p>
+            </div>
+          )}
+
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-2">
               {VIEW_OPTIONS.map((opt) => (
@@ -577,7 +598,11 @@ export default function ReportesPage() {
                         <td className="px-4 py-3 text-slate-600">{student.edad} años</td>
                         <td className="px-4 py-3 text-slate-600">
                           {student.schedules.length > 0
-                            ? `${student.schedules[0].discipline} ${student.schedules[0].dayOfWeek} ${student.schedules[0].startTime}-${student.schedules[0].endTime}`
+                            ? student.schedules.map((sc, i) => (
+                                <span key={i} className="block whitespace-nowrap">
+                                  {sc.discipline} {sc.dayOfWeek} {sc.startTime}-{sc.endTime}
+                                </span>
+                              ))
                             : "-"}
                         </td>
                         <td className="px-4 py-3 text-slate-600">{student.disciplines || "-"}</td>
