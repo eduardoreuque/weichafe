@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { isPlausibleDate, parseLocalDate } from "@/lib/helpers";
 import { scheduleIdsExist } from "@/lib/schedules";
+import { SESSION_EXPIRED_MESSAGE } from "@/lib/session-policy";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -28,7 +29,7 @@ export async function updateStudentAction(
   if (!studentId) return { ok: false, error: "ID de alumno requerido" };
 
   const session = await getSession();
-  if (!session) return { ok: false, error: "No autorizado" };
+  if (!session) return { ok: false, error: SESSION_EXPIRED_MESSAGE };
 
   const fullName = normalizeString(formData.get("fullName"));
   const birthDateRaw = normalizeString(formData.get("birthDate"));

@@ -3,6 +3,7 @@
 import { FormEvent, useState, useEffect } from "react";
 import Link from "next/link";
 import { updateStudentAction } from "@/app/actions";
+import { handleUnauthorized, requestSessionCheck } from "@/lib/session-client";
 
 type Schedule = {
   id: string;
@@ -113,7 +114,11 @@ export function StudentEditForm({
         });
         
         if (!uploadRes.ok) {
-          throw new Error("Error al subir la foto");
+          handleUnauthorized(uploadRes);
+          // El servidor explica el motivo (tamaño, formato, sesión): se muestra tal cual.
+          const data = await uploadRes.json().catch(() => null);
+          setError(data?.error || "No se pudo subir la foto. Intenta nuevamente.");
+          return;
         }
         
         const { url } = await uploadRes.json();
@@ -125,11 +130,14 @@ export function StudentEditForm({
       const result = await updateStudentAction(student.id, formData);
       if (result.ok === false) {
         setError(result.error);
+        requestSessionCheck();
       } else {
         setSuccess("Alumno actualizado correctamente");
       }
     } catch (e) {
       setError("Error al actualizar el alumno");
+      // Una sesión vencida también termina aquí: se comprueba para mostrar el aviso.
+      requestSessionCheck();
     } finally {
       setIsSubmitting(false);
     }

@@ -46,6 +46,8 @@ Se actualizó la configuración de nginx para incluir los headers necesarios:
 server {
   listen 80;
   server_name _;
+  # Fotos de alumnos: la aplicacion acepta hasta 5 MB y explica el motivo si se supera.
+  client_max_body_size 6m;
   
   location / {
     proxy_pass http://127.0.0.1:3000;
@@ -91,6 +93,8 @@ sudo tee /etc/nginx/conf.d/weichafe.conf > /dev/null <<'EOF'
 server {
   listen 80;
   server_name _;
+  # Fotos de alumnos: la aplicacion acepta hasta 5 MB y explica el motivo si se supera.
+  client_max_body_size 6m;
   
   location / {
     proxy_pass http://127.0.0.1:3000;
@@ -170,6 +174,8 @@ Rol:       Administrador
 3. **Dominios**: Si se asigna un dominio a la aplicación, nginx y Next.js continuarán funcionando sin cambios (headers se ajustan automáticamente).
 
 4. **Reverse Proxy alternativo**: Este mismo patrón de headers aplica para Apache, Traefik, HAProxy, etc.
+
+5. **Tamaño de las fotos**: sin `client_max_body_size`, nginx rechaza cuerpos de más de 1 MB con una página de error que el formulario no puede interpretar ("Error al subir la foto"). La configuración incluye `client_max_body_size 6m;`: algo más que el límite de 5 MB de la aplicación (`src/app/api/upload/route.ts`), para que el mensaje de "imagen muy grande" lo dé la aplicación. Si se cambia un límite, revisar el otro.
 
 ## Referencias
 

@@ -38,7 +38,8 @@ export function ScheduleManager() {
     try {
       const res = await fetch("/api/schedules");
       const data = await res.json();
-      setSchedules(data);
+      // Sin sesión la respuesta es un objeto de error, no una lista
+      setSchedules(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error loading schedules:", error);
     } finally {

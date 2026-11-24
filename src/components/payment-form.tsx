@@ -2,6 +2,7 @@
 
 import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { handleUnauthorized } from "@/lib/session-client";
 
 const DISCIPLINE_OPTIONS = [
   { value: "MMA", label: "MMA" },
@@ -67,6 +68,7 @@ export function PaymentForm({ students }: { students: StudentOption[] }) {
           notes: formData.get("notes") || undefined,
         }),
       });
+      handleUnauthorized(response);
 
       const result = await response.json();
       setState(result);

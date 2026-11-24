@@ -3,6 +3,10 @@
 import { FormEvent, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { handleUnauthorized } from "@/lib/session-client";
+
+// Mismo límite que valida el servidor en /api/upload
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 type StudentSubmitResult = { ok: true } | { ok: false; error: string };
 
@@ -33,8 +37,26 @@ export function StudentForm() {
     loadSchedules();
   }, []);
 
+  // Quita la foto elegida. También vacía el selector: si no, volver a elegir
+  // el mismo archivo después de un error no dispara una nueva subida.
+  function clearPhoto() {
+    setPhotoPreview(null);
+    setUploadedPhotoUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function handlePhotoUpload(file: File) {
     if (!file) return;
+
+    // La foto subida antes deja de valer al elegir otra
+    setUploadedPhotoUrl(null);
+    setPhotoPreview(null);
+
+    if (file.size > MAX_PHOTO_BYTES) {
+      alert("La imagen es muy grande. Máximo 5 MB.");
+      clearPhoto();
+      return;
+    }
 
     // Show preview
     const reader = new FileReader();
@@ -51,16 +73,21 @@ export function StudentForm() {
         method: "POST",
         body: uploadFormData,
       });
+      // Sesión vencida: el aviso lo muestra SessionKeeper
+      if (handleUnauthorized(res)) {
+        clearPhoto();
+        return;
+      }
       const result = await res.json();
       if (result.ok) {
         setUploadedPhotoUrl(result.url);
       } else {
         alert(result.error || "Error al subir la foto");
-        setPhotoPreview(null);
+        clearPhoto();
       }
     } catch {
-      alert("Error al subir la foto");
-      setPhotoPreview(null);
+      alert("No se pudo subir la foto. Revisa la conexión e intenta nuevamente.");
+      clearPhoto();
     } finally {
       setIsUploading(false);
     }
@@ -87,6 +114,8 @@ export function StudentForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Mientras la foto sube todavía no hay URL que guardar: el alumno quedaría sin foto.
+    if (isUploading) return;
     setIsPending(true);
     setState(null);
 
@@ -115,6 +144,7 @@ export function StudentForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      handleUnauthorized(response);
 
       const result = (await response.json()) as StudentSubmitResult;
       setState(result);
@@ -211,14 +241,19 @@ export function StudentForm() {
             ref={fileInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
+            disabled={isUploading}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) handlePhotoUpload(file);
             }}
             className="w-full text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-emerald-700 hover:file:bg-emerald-100"
           />
-          {isUploading && <p className="mt-1 text-xs text-slate-500">Subiendo imagen...</p>}
-          {photoPreview && (
+          {isUploading && (
+            <p className="mt-1 text-xs font-semibold text-amber-700">
+              Subiendo foto... espera a que termine antes de guardar.
+            </p>
+          )}
+          {photoPreview && uploadedPhotoUrl && (
             <div className="mt-2 flex items-center gap-3">
               <Image
                 src={photoPreview}
@@ -284,10 +319,10 @@ export function StudentForm() {
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || isUploading}
         className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
       >
-        {isPending ? "Guardando..." : "Guardar alumno"}
+        {isUploading ? "Subiendo foto..." : isPending ? "Guardando..." : "Guardar alumno"}
       </button>
     </form>
   );

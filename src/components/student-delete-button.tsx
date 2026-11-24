@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { handleUnauthorized } from "@/lib/session-client";
 
 type DeleteResult = { ok: true } | { ok: false; error: string };
 
@@ -29,6 +30,7 @@ export function StudentDeleteButton({ studentId, studentName }: StudentDeleteBut
       const response = await fetch(`/api/students?id=${encodeURIComponent(studentId)}`, {
         method: "DELETE",
       });
+      handleUnauthorized(response);
 
       const result = (await response.json()) as DeleteResult;
 

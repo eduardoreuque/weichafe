@@ -2,6 +2,7 @@
 
 import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { handleUnauthorized } from "@/lib/session-client";
 
 const DISCIPLINE_OPTIONS = [
   { value: "MMA", label: "MMA" },
@@ -78,6 +79,7 @@ export function ClassForm({ students }: { students: StudentOption[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      handleUnauthorized(response);
 
       const result = (await response.json()) as { ok: boolean; error?: string };
       setState(result);

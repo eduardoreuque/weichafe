@@ -24,6 +24,10 @@ Lo ya corregido en el commit `a2fa578` está marcado con ✅.
 
 ## 2. Nuevo
 
+- ✅ **Sesión vencida con aviso claro** (noviembre 2026): sin sesión, las llamadas a `/api/*` reciben 401 en JSON (`src/proxy.ts`) en vez de ser redirigidas al login, y `SessionKeeper` (`src/components/session-keeper.tsx`) muestra "Tu sesión expiró" con el inicio de sesión en otra pestaña. Antes la subida de foto fallaba con "Error al subir la foto".
+- ✅ **La sesión se renueva con el uso**: `/api/auth/me` la extiende (7 días sin uso, tope de 30 días desde el inicio de sesión, solo si la cuenta sigue existiendo). Reglas en `src/lib/session-policy.ts`, con pruebas.
+- ✅ **"Guardar alumno" se bloquea mientras sube la foto**: antes el alumno podía quedar guardado sin su foto.
+- ✅ **Nginx acepta fotos de hasta 6 MB** (`client_max_body_size`, ver `NGINX-DEPLOYMENT-FIX.md`). Es configuración del servidor: no la aplica el deploy.
 - ✅ **Varios horarios por alumno** (noviembre 2026): tabla `StudentSchedule` (N:N). Alta y edición permiten marcar todos los horarios y disciplinas; `Student.scheduleId` se mantiene como horario principal.
 - ✅ **Filtros exactos por bloque** (noviembre 2026): Pagos por horario, Reportes y Alumnos por horario muestran solo registros vinculados al bloque (`scheduleId`). Los registros sin horario se informan aparte. Reglas en `src/lib/report-filters.ts`, con pruebas (`npm test`).
 - ✅ **Deploy con vuelta atrás** (`scripts/deploy-remote.sh`): detiene el servicio, respalda con verificación de integridad, migra, comprueba que la app responde y restaura la versión anterior si algo falla.

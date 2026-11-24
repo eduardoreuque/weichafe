@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Nunito, Oswald } from "next/font/google";
 import "./globals.css";
+import { SessionKeeper } from "@/components/session-keeper";
 
 const bodyFont = Nunito({
   variable: "--font-body",
@@ -31,7 +32,10 @@ export default function RootLayout({
       lang="es"
       className={`${bodyFont.variable} ${displayFont.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <SessionKeeper />
+        {children}
+      </body>
     </html>
   );
 }
